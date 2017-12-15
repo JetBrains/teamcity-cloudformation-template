@@ -1,12 +1,12 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-    This template deploys a CoreOS EC2 instance with the latest official TeamCity server from DockerHub on board, one RDS database and one TeamCity Build Agent.
+    This template deploys a CoreOS EC2 instance with the official TeamCity server of the specified version from DockerHub, one RDS database and one TeamCity Build Agent.
 
     Last Modified: 08 Nov 2017
 
 Parameters:
     KeyName:
-        Description: Existing EC2 KeyPair for SSH access to the TeamCity Server EC2 instance
+        Description: The existing EC2 KeyPair for SSH access to the TeamCity Server EC2 instance
         Type: AWS::EC2::KeyPair::KeyName
         AllowedPattern: ".+"
 
@@ -17,7 +17,7 @@ Parameters:
         Default: latest
 
     ServerInstanceType:
-        Description: Which instance type should we use for the TeamCity Server EC2 instance?
+        Description: The instance type for the TeamCity Server EC2 instance
         Type: String
         Default: t2.medium
         AllowedValues:
@@ -59,7 +59,7 @@ Parameters:
           - r3.8xlarge
 
     DBInstanceType:
-        Description: Which instance type should we use for the RDS instance for TeamCity Database?
+        Description: The instance type for the RDS instance for TeamCity Database
         Type: String
         Default: db.t2.small
         AllowedValues:
@@ -81,7 +81,7 @@ Parameters:
           - db.r3.8xlarge
 
     DBPassword:
-        Description: Please generate the password for the TeamCity RDS Database (min 8 chars)
+        Description: Provide the password for the TeamCity RDS Database (min 8 chars)
         Type: String
         AllowedPattern: ".+"
         MinLength: 8
