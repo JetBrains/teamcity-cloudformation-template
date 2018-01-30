@@ -374,7 +374,7 @@ Resources:
                 innodb_flush_log_at_trx_commit: "2"
                 character_set_server: "utf8"
                 collation_server: "utf8_bin"
-                max_allowed_packet: "16M"
+                max_allowed_packet: "16777216"
 
     RDSSubnetGroup:
         Type: "AWS::RDS::DBSubnetGroup"
