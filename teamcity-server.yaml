@@ -277,13 +277,15 @@ Resources:
                             EnvironmentFile=/etc/teamcity-version
                             TimeoutStartSec=1200s
                             ExecStartPre=/bin/sh -c "docker images --filter 'before=jetbrains/teamcity-server:${!TEAMCITY_VERSION}' --format '{{.ID}} {{.Repository}}' | grep 'jetbrains/teamcity-server' | grep -Eo '^[^ ]+' | xargs -r docker rmi"
-                            ExecStart=/usr/bin/docker run \
+                            ExecStartPre=/usr/bin/docker create \
                               -v /mnt/data/teamcity:/data/teamcity_server/datadir \
                               -v /mnt/data/logs/teamcity:/opt/teamcity/logs \
                               -v /mnt/data/temp/teamcity:/opt/teamcity/temp \
                               -p 80:8111 \
                               --name teamcity-server \
                               jetbrains/teamcity-server:${!TEAMCITY_VERSION}
+                            ExecStartPre=/bin/sh -c "echo 'aws' > dist && docker cp dist teamcity-server:/opt/teamcity/webapps/ROOT/WEB-INF/DistributionType.txt && rm dist"
+                            ExecStart=/usr/bin/docker start teamcity-server -a
                             ExecStop=-/usr/bin/docker exec teamcity-server /opt/teamcity/bin/teamcity-server.sh stop 60
                             ExecStopPost=-/usr/bin/docker stop teamcity-server
                             ExecStopPost=-/usr/bin/docker rm teamcity-server
