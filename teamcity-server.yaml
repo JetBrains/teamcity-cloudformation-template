@@ -81,7 +81,7 @@ Parameters:
           - db.r3.8xlarge
 
     DBPassword:
-        Description: Provide the password for the TeamCity RDS Database (min 8 chars)
+        Description: Provide the password for the TeamCity RDS Database (min 8, maximum 41 characters)
         Type: String
         AllowedPattern: ".+"
         MinLength: 8
