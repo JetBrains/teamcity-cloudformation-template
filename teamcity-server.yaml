@@ -278,6 +278,7 @@ Resources:
                             TimeoutStartSec=1200s
                             ExecStartPre=/bin/sh -c "docker images --filter 'before=jetbrains/teamcity-server:${!TEAMCITY_VERSION}' --format '{{.ID}} {{.Repository}}' | grep 'jetbrains/teamcity-server' | grep -Eo '^[^ ]+' | xargs -r docker rmi"
                             ExecStartPre=/usr/bin/docker create \
+                              -e TEAMCITY_SERVER_MEM_OPTS="-Xmx$(($(grep MemTotal /proc/meminfo | awk '{print $2}') / 2))k -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m" \
                               -v /mnt/data/teamcity:/data/teamcity_server/datadir \
                               -v /mnt/data/logs/teamcity:/opt/teamcity/logs \
                               -v /mnt/data/temp/teamcity:/opt/teamcity/temp \
