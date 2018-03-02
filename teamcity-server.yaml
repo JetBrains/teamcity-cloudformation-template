@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >
     This template deploys a CoreOS EC2 instance with the official TeamCity server of the specified version from DockerHub, one RDS database and one TeamCity Build Agent.
 
-    Last Modified: 19 Nov 2017
+    Last Modified: 02 Feb 2018
 
 Parameters:
     KeyName:
@@ -268,7 +268,7 @@ Resources:
                             Type=oneshot
                             ExecStart=/usr/bin/mkdir -p /mnt/data/teamcity/config
                             ExecStart=/bin/bash -c 'echo connectionProperties.user=teamcity > /mnt/data/teamcity/config/database.properties'
-                            ExecStart=/bin/bash -c 'echo connectionProperties.password=${RDSPassword} >> /mnt/data/teamcity/config/database.properties'
+                            ExecStart=/bin/bash -c 'echo "connectionProperties.password=${RDSPassword}" >> /mnt/data/teamcity/config/database.properties'
                             ExecStart=/bin/bash -c 'echo connectionUrl=jdbc\\:mysql\\://${RDSAddress}/teamcitydb >> /mnt/data/teamcity/config/database.properties'
 
                             [Install]
