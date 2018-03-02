@@ -21,21 +21,28 @@ Parameters:
         Type: String
         Default: t2.medium
         AllowedValues:
-          - t2.small
           - t2.medium
           - t2.large
           - t2.xlarge
           - t2.2xlarge
+          - m5.xlarge
+          - m5.2xlarge
+          - m5.4xlarge
+          - m5.12xlarge
+          - m5.24xlarge
           - m4.large
           - m4.xlarge
           - m4.2xlarge
           - m4.4xlarge
           - m4.10xlarge
           - m4.16xlarge
-          - m3.medium
-          - m3.large
-          - m3.xlarge
-          - m3.2xlarge
+          - m4.large
+          - c5.large
+          - c5.xlarge
+          - c5.2xlarge
+          - c5.4xlarge
+          - c5.9xlarge
+          - c5.18xlarge
           - c4.large
           - c4.xlarge
           - c4.2xlarge
