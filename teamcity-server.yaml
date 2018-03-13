@@ -316,8 +316,8 @@ Resources:
                             ExecStartPre=/bin/sh -c "docker images --filter 'before=jetbrains/teamcity-agent:${!TEAMCITY_VERSION}' --format '{{.ID}} {{.Repository}}' | grep 'jetbrains/teamcity-agent' | grep -Eo '^[^ ]+' | xargs -r docker rmi"
                             ExecStart=/usr/bin/docker run \
                               -v /var/run/docker.sock:/var/run/docker.sock  \
-                              -v /opt/buildagent/work:/opt/buildagent/work \
-                              -v /opt/buildagent/temp:/opt/buildagent/temp \
+                              -v /mnt/data/teamcity-agent/work:/opt/buildagent/work \
+                              -v /mnt/data/teamcity-agent/temp:/opt/buildagent/temp \
                               -v /mnt/data/temp/teamcity:/opt/teamcity/temp \
                               -e SERVER_URL=${!COREOS_EC2_IPV4_LOCAL} \
                               -e AGENT_NAME=Default \
