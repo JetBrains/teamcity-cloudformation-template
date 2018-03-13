@@ -430,7 +430,7 @@ Resources:
         Type: AWS::EC2::Subnet
         Properties:
             VpcId: !Ref VPC
-            AvailabilityZone: !Select [ 0, !GetAZs ]
+            AvailabilityZone: !Select [ 0, !GetAZs "" ]
             CidrBlock: 10.0.0.0/24
             MapPublicIpOnLaunch: true
             Tags:
@@ -441,7 +441,7 @@ Resources:
         Type: AWS::EC2::Subnet
         Properties:
             VpcId: !Ref VPC
-            AvailabilityZone: !Select [ 0, !GetAZs ]
+            AvailabilityZone: !Select [ 0, !GetAZs "" ]
             CidrBlock: 10.0.2.0/24
             MapPublicIpOnLaunch: false
             Tags:
@@ -452,7 +452,7 @@ Resources:
         Type: AWS::EC2::Subnet
         Properties:
             VpcId: !Ref VPC
-            AvailabilityZone: !Select [ 1, !GetAZs ]
+            AvailabilityZone: !Select [ 1, !GetAZs "" ]
             CidrBlock: 10.0.3.0/24
             MapPublicIpOnLaunch: false
             Tags:
