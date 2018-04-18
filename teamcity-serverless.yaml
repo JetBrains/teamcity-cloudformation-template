@@ -215,3 +215,28 @@ Resources:
           - ContainerName: 'teamcity-server'
             ContainerPort: 80
             TargetGroupArn: !Ref 'TargetGroup'
+
+  FileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      PerformanceMode: generalPurpose
+      FileSystemTags:
+      - Key: Name
+        Value:
+          Ref: AWS::StackName
+
+  MountTarget:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: FileSystem
+      SubnetId:
+        Ref: PublicSubnetOne
+      SecurityGroups:
+      - Ref: EFSSG
+
+  EFSSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to the EFS
+      VpcId: !Ref 'VPC'
