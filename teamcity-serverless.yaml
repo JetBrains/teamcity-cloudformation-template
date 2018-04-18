@@ -40,16 +40,25 @@ Mappings:
 
 Resources:
 
-  # VPC in which containers will be networked.
-  # It has two public subnets
-  # We distribute the subnets across the first two available subnets
-  # for the region, for high availability.
   VPC:
     Type: AWS::EC2::VPC
     Properties:
       EnableDnsSupport: true
       EnableDnsHostnames: true
       CidrBlock: !FindInMap ['SubnetConfig', 'VPC', 'CIDR']
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+        Tags:
+            - Key: Name
+              Value: !Sub TeamCity-${AWS::StackName}
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+        InternetGatewayId: !Ref InternetGateway
+        VpcId: !Ref VPC
 
   # Two public subnets, where containers can have public IP addresses
   PublicSubnetOne:
@@ -97,7 +106,8 @@ Resources:
         # from the internet can reach the load balancer directly via the internet gateway
         - !Ref PublicSubnetOne
         - !Ref PublicSubnetTwo
-      SecurityGroups: [!Ref 'PublicLoadBalancerSG']
+      SecurityGroups:
+        - !Ref PublicLoadBalancerSG
 
   TargetGroup:
       Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -107,11 +117,12 @@ Resources:
         HealthCheckProtocol: HTTP
         HealthCheckTimeoutSeconds: 5
         HealthyThresholdCount: 2
-        Matcher: 200
-        Name: !Join [':', [!Ref 'AWS::StackName', 'TargetGroup']]
+        Matcher:
+          HttpCode: '200'
         Port: 80
         Protocol: HTTP
-        VpcId: !Join [':', [!Ref 'AWS::StackName', 'VPCId']]
+        TargetType: ip
+        VpcId: !Ref 'VPC'
 
   PublicLoadBalancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -133,7 +144,8 @@ Resources:
             Type: 'forward'
         Conditions:
           - Field: path-pattern
-            Values: '*'
+            Values:
+            - '*'
         ListenerArn: !Ref 'PublicLoadBalancerListener'
         Priority: 1
 
@@ -143,17 +155,13 @@ Resources:
   TaskDefinition:
       Type: AWS::ECS::TaskDefinition
       Properties:
-        Family: !Join [':', [!Ref 'AWS::StackName', 'ECSTaskDefinition']]
         Cpu: !Ref 'ContainerCpu'
         Memory: !Ref 'ContainerMemory'
         NetworkMode: awsvpc
         RequiresCompatibilities:
           - FARGATE
-        ExecutionRoleArn: !Join [':', [!Ref 'AWS::StackName', 'ECSTaskExecutionRole']]
-        TaskRoleArn:
-          - !Ref "AWS::NoValue"
         ContainerDefinitions:
-          - Name: !Join [':', [!Ref 'AWS::StackName', 'ContainerDefinition']]
+          - Name: 'teamcity-server'
             Cpu: !Ref 'ContainerCpu'
             Memory: !Ref 'ContainerMemory'
             Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
@@ -164,7 +172,7 @@ Resources:
       Type: AWS::ECS::Service
       DependsOn: LoadBalancerRule
       Properties:
-        ServiceName: !Join [':', [!Ref 'AWS::StackName', 'Service']]
+        ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityServer']]
         Cluster: !Ref 'ECSCluster'
         LaunchType: FARGATE
         DeploymentConfiguration:
@@ -174,16 +182,11 @@ Resources:
         NetworkConfiguration:
           AwsvpcConfiguration:
             AssignPublicIp: ENABLED
-            SecurityGroups:
-              - !Join [':', [!Ref 'AWS::StackName', 'FargateContainerSecurityGroup']]
             Subnets:
-              - !Join [':', [!Ref 'AWS::StackName', 'PublicSubnetOne']]
-              - !Join [':', [!Ref 'AWS::StackName', 'PublicSubnetTwo']]
+              - !Ref PublicSubnetOne
+              - !Ref PublicSubnetTwo
         TaskDefinition: !Ref 'TaskDefinition'
         LoadBalancers:
-          - ContainerName: !Join [':', [!Ref 'AWS::StackName', 'TeamCityServer']]
+          - ContainerName: 'teamcity-server'
             ContainerPort: 80
             TargetGroupArn: !Ref 'TargetGroup'
-        PlacementStrategies:
-          - Type: spread
-            Field: attribute:ecs.availability-zone
