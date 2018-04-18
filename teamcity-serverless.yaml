@@ -1,0 +1,189 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: This template deploys a TeamCity server and build agent of the specified version from DockerHub as Fargate task, one RDS database.
+
+Parameters:
+    TeamCityVersion:
+        Description: TeamCity Version
+        Type: String
+        AllowedPattern: ".+"
+        Default: latest
+
+    ContainerCpu:
+        Type: Number
+        Default: 1024
+        Description: How much CPU to give the container running TeamCity server. 1024 is 1 CPU
+
+    ContainerMemory:
+        Type: Number
+        Default: 4096
+        Description: How much memory in megabytes to give the container running TeamCity server
+
+Mappings:
+  # Hard values for the subnet masks. These masks define
+  # the range of internal IP addresses that can be assigned.
+  # The VPC can have all IP's from 10.0.0.0 to 10.0.255.255
+  # There are two subnets which cover the ranges:
+  #
+  # 10.0.0.0 - 10.0.0.255
+  # 10.0.1.0 - 10.0.1.255
+  #
+  # If you need more IP addresses (perhaps you have so many
+  # instances that you run out) then you can customize these
+  # ranges to add more
+  SubnetConfig:
+    VPC:
+      CIDR: '10.0.0.0/16'
+    PublicOne:
+      CIDR: '10.0.0.0/24'
+    PublicTwo:
+      CIDR: '10.0.1.0/24'
+
+Resources:
+
+  # VPC in which containers will be networked.
+  # It has two public subnets
+  # We distribute the subnets across the first two available subnets
+  # for the region, for high availability.
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: !FindInMap ['SubnetConfig', 'VPC', 'CIDR']
+
+  # Two public subnets, where containers can have public IP addresses
+  PublicSubnetOne:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+         Fn::Select:
+         - 0
+         - Fn::GetAZs: {Ref: 'AWS::Region'}
+      VpcId: !Ref 'VPC'
+      CidrBlock: !FindInMap ['SubnetConfig', 'PublicOne', 'CIDR']
+      MapPublicIpOnLaunch: true
+  PublicSubnetTwo:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+         Fn::Select:
+         - 1
+         - Fn::GetAZs: {Ref: 'AWS::Region'}
+      VpcId: !Ref 'VPC'
+      CidrBlock: !FindInMap ['SubnetConfig', 'PublicTwo', 'CIDR']
+      MapPublicIpOnLaunch: true
+
+  # A public facing load balancer, this is used for accepting traffic from the public
+  # internet and directing it to public facing microservices
+  PublicLoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to the public facing load balancer
+      VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+          # Allow access to ALB from anywhere on the internet
+          - CidrIp: 0.0.0.0/0
+            IpProtocol: -1
+
+  PublicLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '30'
+      Subnets:
+        # The load balancer is placed into the public subnets, so that traffic
+        # from the internet can reach the load balancer directly via the internet gateway
+        - !Ref PublicSubnetOne
+        - !Ref PublicSubnetTwo
+      SecurityGroups: [!Ref 'PublicLoadBalancerSG']
+
+  TargetGroup:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        HealthCheckIntervalSeconds: 6
+        HealthCheckPath: /login.html
+        HealthCheckProtocol: HTTP
+        HealthCheckTimeoutSeconds: 5
+        HealthyThresholdCount: 2
+        Matcher: 200
+        Name: !Join [':', [!Ref 'AWS::StackName', 'TargetGroup']]
+        Port: 80
+        Protocol: HTTP
+        VpcId: !Join [':', [!Ref 'AWS::StackName', 'VPCId']]
+
+  PublicLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - PublicLoadBalancer
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref 'TargetGroup'
+          Type: 'forward'
+      LoadBalancerArn: !Ref 'PublicLoadBalancer'
+      Port: 80
+      Protocol: HTTP
+
+  LoadBalancerRule:
+      Type: AWS::ElasticLoadBalancingV2::ListenerRule
+      Properties:
+        Actions:
+          - TargetGroupArn: !Ref 'TargetGroup'
+            Type: 'forward'
+        Conditions:
+          - Field: path-pattern
+            Values: '*'
+        ListenerArn: !Ref 'PublicLoadBalancerListener'
+        Priority: 1
+
+  ECSCluster:
+        Type: AWS::ECS::Cluster
+
+  TaskDefinition:
+      Type: AWS::ECS::TaskDefinition
+      Properties:
+        Family: !Join [':', [!Ref 'AWS::StackName', 'ECSTaskDefinition']]
+        Cpu: !Ref 'ContainerCpu'
+        Memory: !Ref 'ContainerMemory'
+        NetworkMode: awsvpc
+        RequiresCompatibilities:
+          - FARGATE
+        ExecutionRoleArn: !Join [':', [!Ref 'AWS::StackName', 'ECSTaskExecutionRole']]
+        TaskRoleArn:
+          - !Ref "AWS::NoValue"
+        ContainerDefinitions:
+          - Name: !Join [':', [!Ref 'AWS::StackName', 'ContainerDefinition']]
+            Cpu: !Ref 'ContainerCpu'
+            Memory: !Ref 'ContainerMemory'
+            Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
+            PortMappings:
+              - ContainerPort: 80
+
+  Service:
+      Type: AWS::ECS::Service
+      DependsOn: LoadBalancerRule
+      Properties:
+        ServiceName: !Join [':', [!Ref 'AWS::StackName', 'Service']]
+        Cluster: !Ref 'ECSCluster'
+        LaunchType: FARGATE
+        DeploymentConfiguration:
+          MaximumPercent: 200
+          MinimumHealthyPercent: 0
+        DesiredCount: 1
+        NetworkConfiguration:
+          AwsvpcConfiguration:
+            AssignPublicIp: ENABLED
+            SecurityGroups:
+              - !Join [':', [!Ref 'AWS::StackName', 'FargateContainerSecurityGroup']]
+            Subnets:
+              - !Join [':', [!Ref 'AWS::StackName', 'PublicSubnetOne']]
+              - !Join [':', [!Ref 'AWS::StackName', 'PublicSubnetTwo']]
+        TaskDefinition: !Ref 'TaskDefinition'
+        LoadBalancers:
+          - ContainerName: !Join [':', [!Ref 'AWS::StackName', 'TeamCityServer']]
+            ContainerPort: 80
+            TargetGroupArn: !Ref 'TargetGroup'
+        PlacementStrategies:
+          - Type: spread
+            Field: attribute:ecs.availability-zone
