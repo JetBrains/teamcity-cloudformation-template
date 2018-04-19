@@ -1,6 +1,8 @@
 AWSTemplateFormatVersion: "2010-09-09"
+
 Description:
   This template deploys a high available TeamCity installation including main and readonly server nodes and build agent of the specified version from DockerHub.
+
 Parameters:
     TeamCityVersion:
         Description: TeamCity Version
@@ -17,6 +19,78 @@ Parameters:
         Type: Number
         Default: 4096
         Description: How much memory in megabytes to give the container running TeamCity server
+
+    KeyName:
+        Description: The existing EC2 KeyPair for SSH access to the EC2 instance running container with TeamCity Server
+        Type: AWS::EC2::KeyPair::KeyName
+        AllowedPattern: ".+"
+
+    ServerInstanceType:
+        Description: The instance type for the EC2 instance running container with TeamCity Server
+        Type: String
+        Default: t2.medium
+        AllowedValues:
+          - t2.medium
+          - t2.large
+          - t2.xlarge
+          - t2.2xlarge
+          - m5.xlarge
+          - m5.2xlarge
+          - m5.4xlarge
+          - m5.12xlarge
+          - m5.24xlarge
+          - m4.large
+          - m4.xlarge
+          - m4.2xlarge
+          - m4.4xlarge
+          - m4.10xlarge
+          - m4.16xlarge
+          - m4.large
+          - c5.large
+          - c5.xlarge
+          - c5.2xlarge
+          - c5.4xlarge
+          - c5.9xlarge
+          - c5.18xlarge
+          - c4.large
+          - c4.xlarge
+          - c4.2xlarge
+          - c4.4xlarge
+          - c4.8xlarge
+          - c3.large
+          - c3.xlarge
+          - c3.2xlarge
+          - c3.4xlarge
+          - c3.8xlarge
+          - r4.large
+          - r4.xlarge
+          - r4.2xlarge
+          - r4.4xlarge
+          - r4.8xlarge
+          - r4.16xlarge
+          - r3.large
+          - r3.xlarge
+          - r3.2xlarge
+          - r3.4xlarge
+          - r3.8xlarge
+
+Metadata:
+    AWS::CloudFormation::Interface:
+        ParameterGroups:
+          -
+            Label:
+              default: "TeamCity Server"
+            Parameters:
+              - ServerInstanceType
+              - KeyName
+              - TeamCityVersion
+        ParameterLabels:
+          ServerInstanceType:
+            default: "EC2 Instance Type"
+          KeyName:
+            default: "EC2 KeyPair"
+          TeamCityVersion:
+            default: "TeamCity Version"
 
 Mappings:
   # Hard values for the subnet masks. These masks define
@@ -37,6 +111,38 @@ Mappings:
       CIDR: '10.0.0.0/24'
     PublicTwo:
       CIDR: '10.0.1.0/24'
+
+  AWSRegionToAMI:
+        eu-central-1:
+            AMI: ami-9fc39c74
+        ap-northeast-1:
+            AMI: ami-a99d8ad5
+        ap-northeast-2:
+            AMI: ami-9d56f9f3
+        ca-central-1:
+            AMI: ami-897ff9ed
+        ap-south-1:
+            AMI: ami-72edc81d
+        sa-east-1:
+            AMI: ami-4a7e2826
+        ap-southeast-2:
+            AMI: ami-efda148d
+        ap-southeast-1:
+            AMI: ami-846144f8
+        us-east-1:
+            AMI: ami-aff65ad2
+        us-east-2:
+            AMI: ami-64300001
+        us-west-2:
+            AMI: ami-40ddb938
+        us-west-1:
+            AMI: ami-69677709
+        eu-west-1:
+            AMI: ami-2d386654
+        eu-west-2:
+            AMI: ami-2218f945
+        eu-west-3:
+            AMI: ami-250eb858
 
 Resources:
 
@@ -174,6 +280,43 @@ Resources:
 
   ECSCluster:
         Type: AWS::ECS::Cluster
+        Properties:
+          ClusterName: !Ref AWS::StackName
+
+  ECSAutoScalingGroup:
+        Type: AWS::AutoScaling::AutoScalingGroup
+        Properties:
+          VPCZoneIdentifier:
+            - !Ref "PublicSubnetOne"
+            - !Ref "PublicSubnetTwo"
+          LaunchConfigurationName: !Ref "ECSNodeLaunchConfiguration"
+          MinSize: 1
+          MaxSize: 1
+          DesiredCapacity: 1
+#        CreationPolicy:
+#          ResourceSignal:
+#            Timeout: "PT15M"
+        UpdatePolicy:
+          AutoScalingRollingUpdate:
+            MinInstancesInService: 1
+            MaxBatchSize: 1
+            PauseTime: "PT15M"
+            WaitOnResourceSignals: true
+
+  ECSNodeLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !FindInMap [ AWSRegionToAMI, !Ref 'AWS::Region' , "AMI" ]
+      KeyName: !Ref 'KeyName'
+      InstanceType: !Ref ServerInstanceType
+      SecurityGroups:
+        - !Ref ECSNodeSecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+           #!/bin/bash
+           echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+           yum update -y aws-cfn-bootstrap
+           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AutoScalingGroup --region ${AWS::Region}
 
   TaskDefinition:
       Type: AWS::ECS::TaskDefinition
@@ -224,10 +367,16 @@ Resources:
       SubnetId:
         Ref: PublicSubnetOne
       SecurityGroups:
-      - Ref: EFSSG
+      - Ref: "EFSSecurityGroup"
 
-  EFSSG:
+  EFSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Access to the EFS
       VpcId: !Ref 'VPC'
+
+  ECSNodeSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Access to the EFS
+        VpcId: !Ref 'VPC'
