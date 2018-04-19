@@ -178,16 +178,12 @@ Resources:
   TaskDefinition:
       Type: AWS::ECS::TaskDefinition
       Properties:
-        Cpu: !Ref 'ContainerCpu'
-        Memory: !Ref 'ContainerMemory'
-        NetworkMode: awsvpc
-        RequiresCompatibilities:
-          - FARGATE
         ContainerDefinitions:
           - Name: 'teamcity-server'
+            Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
             Cpu: !Ref 'ContainerCpu'
             Memory: !Ref 'ContainerMemory'
-            Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
+            Essential: true
             PortMappings:
               - ContainerPort: 80
 
@@ -197,20 +193,15 @@ Resources:
       Properties:
         ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityServer']]
         Cluster: !Ref 'ECSCluster'
-        LaunchType: FARGATE
+        LaunchType: EC2
         DeploymentConfiguration:
           MaximumPercent: 200
           MinimumHealthyPercent: 0
         DesiredCount: 1
-        NetworkConfiguration:
-          AwsvpcConfiguration:
-            AssignPublicIp: ENABLED
-            Subnets:
-              - !Ref PublicSubnetOne
-              - !Ref PublicSubnetTwo
-            SecurityGroups:
-              - !Ref FargateContainerSecurityGroup
         TaskDefinition: !Ref 'TaskDefinition'
+        PlacementStrategies:
+          Type: "spread"
+          Field: "attribute:ecs.availability-zone"
         LoadBalancers:
           - ContainerName: 'teamcity-server'
             ContainerPort: 80
