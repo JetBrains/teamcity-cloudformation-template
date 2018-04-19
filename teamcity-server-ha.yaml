@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: This template deploys a TeamCity server and build agent of the specified version from DockerHub as Fargate task, one RDS database.
-
+Description:
+  This template deploys a high available TeamCity installation including main and readonly server nodes and build agent of the specified version from DockerHub.
 Parameters:
     TeamCityVersion:
         Description: TeamCity Version
@@ -144,7 +144,7 @@ Resources:
           HttpCode: '200'
         Port: 80
         Protocol: HTTP
-        TargetType: ip
+        TargetType: instance
         VpcId: !Ref 'VPC'
 
   PublicLoadBalancerListener:
@@ -200,8 +200,8 @@ Resources:
         DesiredCount: 1
         TaskDefinition: !Ref 'TaskDefinition'
         PlacementStrategies:
-          Type: "spread"
-          Field: "attribute:ecs.availability-zone"
+          - Type: "spread"
+            Field: "attribute:ecs.availability-zone"
         LoadBalancers:
           - ContainerName: 'teamcity-server'
             ContainerPort: 80
