@@ -358,10 +358,34 @@ Resources:
       InstanceType: !Ref ServerInstanceType
       SecurityGroups:
         - !Ref ECSNodeSecurityGroup
+      IamInstanceProfile: !Ref ECSNodeInstanceProfile
       UserData:
         Fn::Base64: !Sub |
            #!/bin/bash
            echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+
+  ECSNodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref ECSNodeInstanceRole
+
+  ECSNodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
 
   TaskDefinition:
       Type: AWS::ECS::TaskDefinition
