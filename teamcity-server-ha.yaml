@@ -306,6 +306,12 @@ Resources:
             Essential: true
             PortMappings:
               - ContainerPort: 80
+            LogConfiguration:
+              - LogDriver: 'awslogs'
+                Options:
+                  - awslogs-group: !Ref ECSLogGroup
+                  - awslogs-region: !Ref AWS::Region
+                  - awslogs-stream-prefix: 'aws/ecs/teamcity-server'
 
   Service:
       Type: AWS::ECS::Service
@@ -362,3 +368,12 @@ Resources:
             FromPort: '0'
             ToPort: '0'
             CidrIp: 0.0.0.0/0
+
+  #  Logging
+
+  ECSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 1
+
+
