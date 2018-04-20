@@ -166,29 +166,6 @@ Resources:
         InternetGatewayId: !Ref InternetGateway
         VpcId: !Ref VPC
 
-
-  FargateContainerSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Access to the Fargate containers
-      VpcId: !Ref 'VPC'
-
-  EcsSecurityGroupIngressFromPublicALB:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: Ingress from the public ALB
-      GroupId: !Ref 'FargateContainerSecurityGroup'
-      IpProtocol: -1
-      SourceSecurityGroupId: !Ref 'PublicLoadBalancerSG'
-
-  EcsSecurityGroupIngressFromSelf:
-    Type: AWS::EC2::SecurityGroupIngress
-    Properties:
-      Description: Ingress from other containers in the same security group
-      GroupId: !Ref 'FargateContainerSecurityGroup'
-      IpProtocol: -1
-      SourceSecurityGroupId: !Ref 'FargateContainerSecurityGroup'
-
   # Two public subnets, where containers can have public IP addresses
   PublicSubnetOne:
     Type: AWS::EC2::Subnet
