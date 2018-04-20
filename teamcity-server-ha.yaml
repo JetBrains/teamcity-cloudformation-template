@@ -293,9 +293,9 @@ Resources:
           MinSize: 1
           MaxSize: 1
           DesiredCapacity: 1
-#        CreationPolicy:
-#          ResourceSignal:
-#            Timeout: "PT15M"
+        CreationPolicy:
+          ResourceSignal:
+            Timeout: "PT15M"
         UpdatePolicy:
           AutoScalingRollingUpdate:
             MinInstancesInService: 1
@@ -332,7 +332,7 @@ Resources:
 
   Service:
       Type: AWS::ECS::Service
-      DependsOn: LoadBalancerRule
+      DependsOn: ECSAutoScalingGroup
       Properties:
         ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityServer']]
         Cluster: !Ref 'ECSCluster'
@@ -378,5 +378,10 @@ Resources:
   ECSNodeSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
-        GroupDescription: Access to the EFS
+        GroupDescription: ECS node SG
         VpcId: !Ref 'VPC'
+        SecurityGroupEgress:
+          - IpProtocol: -1
+            FromPort: '0'
+            ToPort: '0'
+            CidrIp: 0.0.0.0/0
