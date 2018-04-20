@@ -343,9 +343,6 @@ Resources:
           MinSize: 1
           MaxSize: 1
           DesiredCapacity: 1
-        CreationPolicy:
-          ResourceSignal:
-            Timeout: "PT15M"
         UpdatePolicy:
           AutoScalingRollingUpdate:
             MinInstancesInService: 1
@@ -365,8 +362,6 @@ Resources:
         Fn::Base64: !Sub |
            #!/bin/bash
            echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
-           yum update -y aws-cfn-bootstrap
-           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AutoScalingGroup --region ${AWS::Region}
 
   TaskDefinition:
       Type: AWS::ECS::TaskDefinition
@@ -388,7 +383,9 @@ Resources:
 
   Service:
       Type: AWS::ECS::Service
-      DependsOn: ECSAutoScalingGroup
+      DependsOn:
+        - ECSAutoScalingGroup
+        - PublicLoadBalancer
       Properties:
         ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityServer']]
         Cluster: !Ref 'ECSCluster'
@@ -446,6 +443,11 @@ Resources:
       Properties:
         GroupDescription: ECS node SG
         VpcId: !Ref 'VPC'
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '22'
+            ToPort: '22'
+            CidrIp: 0.0.0.0/0
         SecurityGroupEgress:
           - IpProtocol: -1
             FromPort: '0'
