@@ -430,6 +430,9 @@ Resources:
             Cpu: !Ref 'ContainerCpu'
             Memory: !Ref 'ContainerMemory'
             Essential: true
+            Environment:
+              - Name: TEAMCITY_SERVER_MEM_OPTS
+                Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
             MountPoints:
               - ContainerPath: /data/teamcity_server/datadir
                 SourceVolume: data
