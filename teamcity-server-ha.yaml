@@ -292,13 +292,13 @@ Resources:
       Type: AWS::ElasticLoadBalancingV2::TargetGroup
       Properties:
         HealthCheckIntervalSeconds: 6
-        HealthCheckPath: /login.html
+        HealthCheckPath: /mnt
         HealthCheckProtocol: HTTP
         HealthCheckTimeoutSeconds: 5
         HealthyThresholdCount: 2
         Matcher:
           HttpCode: '200'
-        Port: 80
+        Port: 8111
         Protocol: HTTP
         TargetType: instance
         VpcId: !Ref 'VPC'
@@ -312,7 +312,7 @@ Resources:
         - TargetGroupArn: !Ref 'TargetGroup'
           Type: 'forward'
       LoadBalancerArn: !Ref 'PublicLoadBalancer'
-      Port: 80
+      Port: 8111
       Protocol: HTTP
 
   LoadBalancerRule:
@@ -397,7 +397,7 @@ Resources:
             Memory: !Ref 'ContainerMemory'
             Essential: true
             PortMappings:
-              - ContainerPort: 80
+              - ContainerPort: 8111
             LogConfiguration:
               LogDriver: 'awslogs'
               Options:
@@ -418,13 +418,14 @@ Resources:
           MaximumPercent: 200
           MinimumHealthyPercent: 0
         DesiredCount: 1
+        HealthCheckGracePeriodSeconds: 300
         TaskDefinition: !Ref 'TaskDefinition'
         PlacementStrategies:
           - Type: "spread"
             Field: "attribute:ecs.availability-zone"
         LoadBalancers:
           - ContainerName: 'teamcity-server'
-            ContainerPort: 80
+            ContainerPort: 8111
             TargetGroupArn: !Ref 'TargetGroup'
 
   FileSystem:
@@ -468,6 +469,10 @@ Resources:
         GroupDescription: ECS node SG
         VpcId: !Ref 'VPC'
         SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '8111'
+            ToPort: '8111'
+            CidrIp: 0.0.0.0/0
           - IpProtocol: tcp
             FromPort: '22'
             ToPort: '22'
