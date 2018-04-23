@@ -335,6 +335,9 @@ Resources:
 
   ECSAutoScalingGroup:
         Type: AWS::AutoScaling::AutoScalingGroup
+        DependsOn:
+          - MountTarget1
+          - MountTarget2
         Properties:
           VPCZoneIdentifier:
             - !Ref PublicSubnet1
@@ -364,6 +367,27 @@ Resources:
            #!/bin/bash
            echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
 
+           EC2_AVAIL_ZONE=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
+           EC2_REGION=${AWS::Region}
+           EFS_FILE_SYSTEM_ID=${FileSystem}
+           DIR_SRC=$EC2_AVAIL_ZONE.$EFS_FILE_SYSTEM_ID.efs.$EC2_REGION.amazonaws.com
+           DIR_TGT=/mnt/efs
+
+           touch /home/ec2-user/echo.res
+           echo $EFS_FILE_SYSTEM_ID >> /home/ec2-user/echo.res
+           echo $EC2_AVAIL_ZONE >> /home/ec2-user/echo.res
+           echo $EC2_REGION >> /home/ec2-user/echo.res
+           echo $DIR_SRC >> /home/ec2-user/echo.res
+           echo $DIR_TGT >> /home/ec2-user/echo.res
+
+           mkdir /mnt/efs
+           mount -t nfs4 $DIR_SRC:/ $DIR_TGT >> /home/ec2-user/echo.res
+           echo -e \"$DIR_SRC:/ \t\t $DIR_TGT \t\t nfs \t\t defaults \t\t 0 \t\t 0\" | tee -a /etc/fstab
+
+           docker ps
+           service docker stop
+           service docker start
+
   ECSNodeInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -390,12 +414,29 @@ Resources:
   TaskDefinition:
       Type: AWS::ECS::TaskDefinition
       Properties:
+        Volumes:
+          - Name: data
+            Host:
+              SourcePath: /mnt/efs
+          - Name: logs
+            Host:
+              SourcePath: /mnt/data/logs/teamcity
+          - Name: temp
+            Host:
+              SourcePath: /mnt/data/temp/teamcity
         ContainerDefinitions:
           - Name: 'teamcity-server'
             Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
             Cpu: !Ref 'ContainerCpu'
             Memory: !Ref 'ContainerMemory'
             Essential: true
+            MountPoints:
+              - ContainerPath: /data/teamcity_server/datadir
+                SourceVolume: data
+              - ContainerPath: /opt/teamcity/logs
+                SourceVolume: logs
+              - ContainerPath: /opt/teamcity/temp
+                SourceVolume: temp
             PortMappings:
               - ContainerPort: 8111
             LogConfiguration:
@@ -437,7 +478,7 @@ Resources:
         Value:
           Ref: AWS::StackName
 
-  MountTarget:
+  MountTarget1:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId:
@@ -445,23 +486,28 @@ Resources:
       SubnetId:
         Ref: PublicSubnet1
       SecurityGroups:
-      - Ref: "EFSSecurityGroup"
+      - Ref: "EFSMountingTargetsSecurityGroup"
 
-#  MountTarget:
- #    Type: AWS::EFS::MountTarget
- #    Properties:
- #      FileSystemId:
- #        Ref: FileSystem
- #      SubnetId:
- #        Ref: PublicSubnet2
- #      SecurityGroups:
- #      - Ref: "EFSSecurityGroup"
+  MountTarget2:
+     Type: AWS::EFS::MountTarget
+     Properties:
+       FileSystemId:
+         Ref: FileSystem
+       SubnetId:
+         Ref: PublicSubnet2
+       SecurityGroups:
+       - Ref: "EFSMountingTargetsSecurityGroup"
 
-  EFSSecurityGroup:
+  EFSMountingTargetsSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Access to the EFS
       VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: 0.0.0.0/0
 
   ECSNodeSecurityGroup:
       Type: AWS::EC2::SecurityGroup
