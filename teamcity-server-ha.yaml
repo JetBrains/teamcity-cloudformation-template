@@ -342,7 +342,7 @@ Resources:
           Values:
           - '*'
       ListenerArn: !Ref PublicLoadBalancerListener
-      Priority: 2
+      Priority: 1
 
   ReadonlyNodeLoadBalancerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
@@ -355,7 +355,7 @@ Resources:
           Values:
           - '*'
       ListenerArn: !Ref PublicLoadBalancerListener
-      Priority: 1
+      Priority: 2
 
   ECSCluster:
         Type: AWS::ECS::Cluster
