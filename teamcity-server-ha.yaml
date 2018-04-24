@@ -74,6 +74,35 @@ Parameters:
           - r3.4xlarge
           - r3.8xlarge
 
+    DBInstanceType:
+            Description: The instance type for the RDS instance for TeamCity Database
+            Type: String
+            Default: db.t2.small
+            AllowedValues:
+              - db.t2.small
+              - db.t2.medium
+              - db.m4.large
+              - db.m4.xlarge
+              - db.m4.2xlarge
+              - db.m4.4xlarge
+              - db.m4.10xlarge
+              - db.m3.medium
+              - db.m3.large
+              - db.m3.xlarge
+              - db.m3.2xlarge
+              - db.r3.large
+              - db.r3.xlarge
+              - db.r3.2xlarge
+              - db.r3.4xlarge
+              - db.r3.8xlarge
+
+    DBPassword:
+        Description: Provide the password for the TeamCity RDS Database (min 8, maximum 41 characters)
+        Type: String
+        AllowedPattern: ".+"
+        MinLength: 8
+        NoEcho: true
+
 Metadata:
     AWS::CloudFormation::Interface:
         ParameterGroups:
@@ -91,6 +120,10 @@ Metadata:
             default: "EC2 KeyPair"
           TeamCityVersion:
             default: "TeamCity Version"
+          DBInstanceType:
+            default: "RDS Database Instance Type"
+          DBPassword:
+            default: "TeamCity Database Password"
 
 Mappings:
 
@@ -365,8 +398,9 @@ Resources:
   ECSAutoScalingGroup:
         Type: AWS::AutoScaling::AutoScalingGroup
         DependsOn:
-          - MountTarget1
-          - MountTarget2
+          - RDSDB
+          - EfsMountTarget1
+          - EfsMountTarget2
         Properties:
           VPCZoneIdentifier:
             - !Ref PublicSubnet1
@@ -562,7 +596,7 @@ Resources:
         Value:
           Ref: AWS::StackName
 
-  MountTarget1:
+  EfsMountTarget1:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId:
@@ -572,7 +606,7 @@ Resources:
       SecurityGroups:
       - Ref: "EFSMountingTargetsSecurityGroup"
 
-  MountTarget2:
+  EfsMountTarget2:
      Type: AWS::EFS::MountTarget
      Properties:
        FileSystemId:
@@ -616,6 +650,56 @@ Resources:
             FromPort: '0'
             ToPort: '0'
             CidrIp: 0.0.0.0/0
+
+  # RDS
+
+  RDSDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: '5'
+      DBInstanceClass: !Ref 'DBInstanceType'
+      DBInstanceIdentifier: !Sub TeamCity-${AWS::StackName}
+      DBName: 'teamcitydb'
+      DBSubnetGroupName: !Ref 'RDSSubnetGroup'
+      VPCSecurityGroups:
+      - Ref: RDSSecurityGroup
+      Engine: MySQL
+      EngineVersion: 5.5.54
+      MasterUsername: teamcity
+      MasterUserPassword: !Ref 'DBPassword'
+      DBParameterGroupName: !Ref 'RDSParamGroup'
+      PubliclyAccessible: false
+    DeletionPolicy: Snapshot
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: !Sub TeamCity ${AWS::StackName} Database
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          CidrIp: 10.0.0.0/24
+
+  RDSParamGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Family: MySQL5.5
+      Description: !Sub TeamCity ${AWS::StackName} DB
+      Parameters:
+        long_query_time: "5"
+        slow_query_log: "1"
+        innodb_flush_log_at_trx_commit: "2"
+        character_set_server: "utf8"
+        collation_server: "utf8_bin"
+        max_allowed_packet: "16777216"
+
+  RDSSubnetGroup:
+    Type: "AWS::RDS::DBSubnetGroup"
+    Properties:
+      DBSubnetGroupDescription: !Sub TeamCity ${AWS::StackName} DB
+      SubnetIds:
+        - !Ref 'PrivateSubnet1'
+        - !Ref 'PrivateSubnet2'
 
   #  Logging
 
