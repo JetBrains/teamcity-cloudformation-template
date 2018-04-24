@@ -132,6 +132,7 @@ Resources:
       Type: AWS::EC2::VPC
       Properties:
           CidrBlock: 10.0.0.0/16
+          EnableDnsHostnames: true
           Tags:
               - Key: Name
                 Value: !Sub TeamCity-${AWS::StackName}
@@ -388,25 +389,9 @@ Resources:
         Fn::Base64: !Sub |
            #!/bin/bash
            echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
-
-           EC2_AVAIL_ZONE=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
-           EC2_REGION=${AWS::Region}
-           EFS_FILE_SYSTEM_ID=${FileSystem}
-           DIR_SRC=$EC2_AVAIL_ZONE.$EFS_FILE_SYSTEM_ID.efs.$EC2_REGION.amazonaws.com
-           DIR_TGT=/mnt/efs
-
-           touch /home/ec2-user/echo.res
-           echo $EFS_FILE_SYSTEM_ID >> /home/ec2-user/echo.res
-           echo $EC2_AVAIL_ZONE >> /home/ec2-user/echo.res
-           echo $EC2_REGION >> /home/ec2-user/echo.res
-           echo $DIR_SRC >> /home/ec2-user/echo.res
-           echo $DIR_TGT >> /home/ec2-user/echo.res
-
-           mkdir /mnt/efs
-           mount -t nfs4 $DIR_SRC:/ $DIR_TGT >> /home/ec2-user/echo.res
-           echo -e \"$DIR_SRC:/ \t\t $DIR_TGT \t\t nfs \t\t defaults \t\t 0 \t\t 0\" | tee -a /etc/fstab
-
-           docker ps
+           sudo yum install -y amazon-efs-utils
+           sudo mkdir /mnt/efs
+           sudo mount -t efs ${FileSystem}:/ /mnt/efs
            service docker stop
            service docker start
 
