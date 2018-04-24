@@ -288,7 +288,7 @@ Resources:
       SecurityGroups:
         - !Ref PublicLoadBalancerSG
 
-  TargetGroup:
+  MainNodeTargetGroup:
       Type: AWS::ElasticLoadBalancingV2::TargetGroup
       Properties:
         HealthCheckIntervalSeconds: 6
@@ -303,30 +303,58 @@ Resources:
         TargetType: instance
         VpcId: !Ref 'VPC'
 
+  ReadonlyNodeTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 6
+      HealthCheckPath: /login.html
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Matcher:
+        HttpCode: '200'
+      Port: 8111
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !Ref 'VPC'
+
   PublicLoadBalancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     DependsOn:
       - PublicLoadBalancer
     Properties:
       DefaultActions:
-        - TargetGroupArn: !Ref 'TargetGroup'
+        - TargetGroupArn: !Ref MainNodeTargetGroup
           Type: 'forward'
-      LoadBalancerArn: !Ref 'PublicLoadBalancer'
+      LoadBalancerArn: !Ref PublicLoadBalancer
       Port: 8111
       Protocol: HTTP
 
-  LoadBalancerRule:
-      Type: AWS::ElasticLoadBalancingV2::ListenerRule
-      Properties:
-        Actions:
-          - TargetGroupArn: !Ref 'TargetGroup'
-            Type: 'forward'
-        Conditions:
-          - Field: path-pattern
-            Values:
-            - '*'
-        ListenerArn: !Ref 'PublicLoadBalancerListener'
-        Priority: 1
+  MainNodeLoadBalancerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref MainNodeTargetGroup
+          Type: 'forward'
+      Conditions:
+        - Field: path-pattern
+          Values:
+          - '*'
+      ListenerArn: !Ref PublicLoadBalancerListener
+      Priority: 2
+
+  ReadonlyNodeLoadBalancerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref ReadonlyNodeTargetGroup
+          Type: 'forward'
+      Conditions:
+        - Field: path-pattern
+          Values:
+          - '*'
+      ListenerArn: !Ref PublicLoadBalancerListener
+      Priority: 1
 
   ECSCluster:
         Type: AWS::ECS::Cluster
@@ -343,15 +371,9 @@ Resources:
             - !Ref PublicSubnet1
             - !Ref PublicSubnet2
           LaunchConfigurationName: !Ref "ECSNodeLaunchConfiguration"
-          MinSize: 1
-          MaxSize: 1
-          DesiredCapacity: 1
-        UpdatePolicy:
-          AutoScalingRollingUpdate:
-            MinInstancesInService: 1
-            MaxBatchSize: 1
-            PauseTime: "PT15M"
-            WaitOnResourceSignals: true
+          MinSize: 2
+          MaxSize: 2
+          DesiredCapacity: 2
 
   ECSNodeLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -411,66 +433,137 @@ Resources:
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
 
-  TaskDefinition:
-      Type: AWS::ECS::TaskDefinition
-      Properties:
-        Volumes:
-          - Name: data
-            Host:
-              SourcePath: /mnt/efs
-          - Name: logs
-            Host:
-              SourcePath: /mnt/data/logs/teamcity
-          - Name: temp
-            Host:
-              SourcePath: /mnt/data/temp/teamcity
-        ContainerDefinitions:
-          - Name: 'teamcity-server'
-            Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
-            Cpu: !Ref 'ContainerCpu'
-            Memory: !Ref 'ContainerMemory'
-            Essential: true
-            Environment:
-              - Name: TEAMCITY_SERVER_MEM_OPTS
-                Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
-            MountPoints:
-              - ContainerPath: /data/teamcity_server/datadir
-                SourceVolume: data
-              - ContainerPath: /opt/teamcity/logs
-                SourceVolume: logs
-              - ContainerPath: /opt/teamcity/temp
-                SourceVolume: temp
-            PortMappings:
-              - ContainerPort: 8111
-            LogConfiguration:
-              LogDriver: 'awslogs'
-              Options:
-                awslogs-group: !Ref ECSLogGroup
-                awslogs-region: !Ref AWS::Region
-                awslogs-stream-prefix: 'aws/ecs/teamcity-server'
+  MainNodeTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Volumes:
+        - Name: data
+          Host:
+            SourcePath: /mnt/efs
+        - Name: logs
+          Host:
+            SourcePath: /mnt/data/logs/teamcity
+        - Name: temp
+          Host:
+            SourcePath: /mnt/data/temp/teamcity
+      ContainerDefinitions:
+        - Name: 'teamcity-server'
+          Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
+          Cpu: !Ref 'ContainerCpu'
+          Memory: !Ref 'ContainerMemory'
+          Essential: true
+          Environment:
+            - Name: TEAMCITY_SERVER_OPTS
+              Value: -Dteamcity.data.path=FOO
+            - Name: TEAMCITY_SERVER_MEM_OPTS
+              Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
+          MountPoints:
+            - ContainerPath: /data/teamcity_server/datadir
+              SourceVolume: data
+            - ContainerPath: /opt/teamcity/logs
+              SourceVolume: logs
+            - ContainerPath: /opt/teamcity/temp
+              SourceVolume: temp
+          PortMappings:
+            - ContainerPort: 8111
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Ref ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'aws/ecs/teamcity-server'
 
-  Service:
-      Type: AWS::ECS::Service
-      DependsOn:
-        - ECSAutoScalingGroup
-        - PublicLoadBalancer
-      Properties:
-        ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityServer']]
-        Cluster: !Ref 'ECSCluster'
-        LaunchType: EC2
-        DeploymentConfiguration:
-          MaximumPercent: 200
-          MinimumHealthyPercent: 0
-        DesiredCount: 1
-        HealthCheckGracePeriodSeconds: 300
-        TaskDefinition: !Ref 'TaskDefinition'
-        PlacementStrategies:
-          - Type: "spread"
-            Field: "attribute:ecs.availability-zone"
-        LoadBalancers:
-          - ContainerName: 'teamcity-server'
-            ContainerPort: 8111
-            TargetGroupArn: !Ref 'TargetGroup'
+  ReadonlyNodeTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Volumes:
+        - Name: data
+          Host:
+            SourcePath: /mnt/efs
+        - Name: logs
+          Host:
+            SourcePath: /mnt/data/logs/teamcity
+        - Name: temp
+          Host:
+            SourcePath: /mnt/data/temp/teamcity
+      ContainerDefinitions:
+        - Name: 'teamcity-server'
+          Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
+          Cpu: !Ref 'ContainerCpu'
+          Memory: !Ref 'ContainerMemory'
+          Essential: true
+          Environment:
+            - Name: TEAMCITY_SERVER_OPTS
+              Value: -Dteamcity.data.path=FOO -Dteamcity.server.nodeSpecificDataPath=BOO -Dteamcity.server.role=read-only-server
+            - Name: TEAMCITY_SERVER_MEM_OPTS
+              Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
+          MountPoints:
+            - ContainerPath: /data/teamcity_server/datadir
+              SourceVolume: data
+            - ContainerPath: /opt/teamcity/logs
+              SourceVolume: logs
+            - ContainerPath: /opt/teamcity/temp
+              SourceVolume: temp
+          PortMappings:
+            - ContainerPort: 8111
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Ref ECSLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'aws/ecs/teamcity-server'
+
+  MainNodeService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - ECSAutoScalingGroup
+      - PublicLoadBalancer
+    Properties:
+      ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityServer', 'MainNode']]
+      Cluster:
+        Ref: ECSCluster
+      LaunchType: EC2
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 0
+      DesiredCount: 1
+      HealthCheckGracePeriodSeconds: 300
+      TaskDefinition:
+        Ref: MainNodeTaskDefinition
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
+      LoadBalancers:
+        - ContainerName: 'teamcity-server'
+          ContainerPort: 8111
+          TargetGroupArn:
+            Ref: MainNodeTargetGroup
+
+  ReadonlyNodeService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - ECSAutoScalingGroup
+      - PublicLoadBalancer
+    Properties:
+      ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityServer', 'ReadonlyNode']]
+      Cluster:
+        Ref: ECSCluster
+      LaunchType: EC2
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 0
+      DesiredCount: 1
+      HealthCheckGracePeriodSeconds: 300
+      TaskDefinition:
+        Ref: ReadonlyNodeTaskDefinition
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
+      LoadBalancers:
+        - ContainerName: 'teamcity-server'
+          ContainerPort: 8111
+          TargetGroupArn:
+            Ref: ReadonlyNodeTargetGroup
 
   FileSystem:
     Type: AWS::EFS::FileSystem
