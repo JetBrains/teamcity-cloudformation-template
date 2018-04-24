@@ -453,8 +453,6 @@ Resources:
           Memory: !Ref 'ContainerMemory'
           Essential: true
           Environment:
-            - Name: TEAMCITY_SERVER_OPTS
-              Value: -Dteamcity.data.path=FOO
             - Name: TEAMCITY_SERVER_MEM_OPTS
               Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
           MountPoints:
@@ -477,9 +475,12 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Volumes:
-        - Name: data
+        - Name: data_main
           Host:
             SourcePath: /mnt/efs
+        - Name: data_ro
+          Host:
+            SourcePath: /mnt/data/teamcity_ro
         - Name: logs
           Host:
             SourcePath: /mnt/data/logs/teamcity
@@ -494,12 +495,14 @@ Resources:
           Essential: true
           Environment:
             - Name: TEAMCITY_SERVER_OPTS
-              Value: -Dteamcity.data.path=FOO -Dteamcity.server.nodeSpecificDataPath=BOO -Dteamcity.server.role=read-only-server
+              Value: -Dteamcity.server.nodeSpecificDataPath=/data/teamcity_server_ro/datadir -Dteamcity.server.role=read-only-server
             - Name: TEAMCITY_SERVER_MEM_OPTS
               Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
           MountPoints:
             - ContainerPath: /data/teamcity_server/datadir
-              SourceVolume: data
+              SourceVolume: data_main
+            - ContainerPath: /data/teamcity_server_ro/datadir
+              SourceVolume: data_ro
             - ContainerPath: /opt/teamcity/logs
               SourceVolume: logs
             - ContainerPath: /opt/teamcity/temp
