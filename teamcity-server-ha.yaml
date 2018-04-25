@@ -454,6 +454,8 @@ Resources:
 
   MainNodeTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - RDSDB
     Properties:
       Volumes:
         - Name: data
@@ -471,6 +473,17 @@ Resources:
           Cpu: !Ref 'ContainerCpu'
           Memory: !Ref 'ContainerMemory'
           Essential: true
+          Command:
+            - "/bin/bash"
+            - "-c"
+            - !Sub
+              - "if [ ! -f /data/teamcity_server/datadir/lib/jdbc ]; then mkdir -p /data/teamcity_server/datadir/lib/jdbc; curl -o /data/teamcity_server/datadir/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar; fi; if [ ! -f /data/teamcity_server/datadir/config/database.properties ]; then mkdir -p /data/teamcity_server/datadir/config; echo connectionProperties.user=teamcity > /data/teamcity_server/datadir/config/database.properties; echo connectionProperties.password=${RDSPassword} >> /data/teamcity_server/datadir/config/database.properties; echo connectionUrl=jdbc\\:mysql\\://${RDSAddress}/teamcitydb >> /data/teamcity_server/datadir/config/database.properties; fi; exec /run-services.sh;"
+              - {
+                  RDSAddress: !GetAtt [RDSDB, Endpoint.Address],
+                  RDSPassword: !Ref 'DBPassword',
+                  TeamCityVersion: !Ref 'TeamCityVersion'
+                }
+
           Environment:
             - Name: TEAMCITY_SERVER_MEM_OPTS
               Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
