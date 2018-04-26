@@ -79,7 +79,6 @@ Parameters:
             Type: String
             Default: db.t2.small
             AllowedValues:
-              - db.t2.small
               - db.t2.medium
               - db.m4.large
               - db.m4.xlarge
@@ -485,7 +484,7 @@ Resources:
                 }
           Environment:
             - Name: TEAMCITY_SERVER_MEM_OPTS
-              Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
+              Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m -Xmx
           MountPoints:
             - ContainerPath: /data/teamcity_server/datadir
               SourceVolume: data
