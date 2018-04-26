@@ -77,7 +77,7 @@ Parameters:
     DBInstanceType:
             Description: The instance type for the RDS instance for TeamCity Database
             Type: String
-            Default: db.t2.small
+            Default: db.t2.medium
             AllowedValues:
               - db.t2.medium
               - db.m4.large
