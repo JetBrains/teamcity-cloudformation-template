@@ -325,11 +325,11 @@ Resources:
   MainNodeTargetGroup:
       Type: AWS::ElasticLoadBalancingV2::TargetGroup
       Properties:
-        HealthCheckIntervalSeconds: 60
+        HealthCheckIntervalSeconds: 6
         HealthCheckPath: /login.html
         HealthCheckProtocol: HTTP
         HealthCheckTimeoutSeconds: 5
-        HealthyThresholdCount: 10
+        HealthyThresholdCount: 2
         Matcher:
           HttpCode: '200'
         Port: 8111
@@ -340,11 +340,11 @@ Resources:
   ReadonlyNodeTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      HealthCheckIntervalSeconds: 60
+      HealthCheckIntervalSeconds: 6
       HealthCheckPath: /login.html
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 10
+      HealthyThresholdCount: 2
       Matcher:
         HttpCode: '200'
       Port: 8111
@@ -361,7 +361,7 @@ Resources:
         - TargetGroupArn: !Ref MainNodeTargetGroup
           Type: 'forward'
       LoadBalancerArn: !Ref PublicLoadBalancer
-      Port: 8111
+      Port: 80
       Protocol: HTTP
 
   MainNodeLoadBalancerRule:
@@ -571,7 +571,7 @@ Resources:
         MaximumPercent: 200
         MinimumHealthyPercent: 0
       DesiredCount: 1
-      HealthCheckGracePeriodSeconds: 300
+      HealthCheckGracePeriodSeconds: 600
       TaskDefinition:
         Ref: MainNodeTaskDefinition
       PlacementStrategies:
@@ -597,7 +597,7 @@ Resources:
         MaximumPercent: 200
         MinimumHealthyPercent: 0
       DesiredCount: 1
-      HealthCheckGracePeriodSeconds: 300
+      HealthCheckGracePeriodSeconds: 600
       TaskDefinition:
         Ref: ReadonlyNodeTaskDefinition
       PlacementStrategies:
