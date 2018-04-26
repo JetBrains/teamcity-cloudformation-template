@@ -10,6 +10,17 @@ Parameters:
         AllowedPattern: ".+"
         Default: latest
 
+    KeyName:
+        Description: The existing EC2 KeyPair for SSH access to the EC2 instance running container with TeamCity server and agents
+        Type: AWS::EC2::KeyPair::KeyName
+        AllowedPattern: ".+"
+
+    ServerHA:
+      Description: Setup high available installation. Launch readonly TeamCity server node. Set 'false' to launch main server node only.
+      Type: String
+      Default: true
+      AllowedValues: [true, false]
+
     ServerContainerCpu:
         Type: Number
         Default: 1024
@@ -19,11 +30,6 @@ Parameters:
         Type: Number
         Default: 4096
         Description: How much memory in megabytes to give the container running TeamCity server
-
-    KeyName:
-        Description: The existing EC2 KeyPair for SSH access to the EC2 instance running container with TeamCity server and agents
-        Type: AWS::EC2::KeyPair::KeyName
-        AllowedPattern: ".+"
 
     ServerInstanceType:
         Description: The instance type for the EC2 instance running container with TeamCity Server
@@ -158,6 +164,7 @@ Metadata:
           - Label:
               default: "TeamCity Server"
             Parameters:
+              - ServerHA
               - ServerInstanceType
               - ServerContainerCpu
               - ServerContainerMemory
@@ -174,6 +181,8 @@ Metadata:
               - AgentContainerCpu
               - AgentContainerMemory
         ParameterLabels:
+          ServerHA:
+            default: "High Available"
           ServerInstanceType:
             default: "EC2 Instance Type"
           AgentInstanceType:
@@ -230,6 +239,10 @@ Mappings:
             AMI: ami-2218f945
         eu-west-3:
             AMI: ami-250eb858
+
+Conditions:
+  ShouldLaunchReadonlyNode:
+    !Equals [true, !Ref ServerHA]
 
 Resources:
 
@@ -411,6 +424,7 @@ Resources:
 
   ReadonlyNodeTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Condition: ShouldLaunchReadonlyNode
     Properties:
       HealthCheckIntervalSeconds: 6
       HealthCheckPath: /login.html
@@ -451,6 +465,7 @@ Resources:
 
   ReadonlyNodeLoadBalancerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Condition: ShouldLaunchReadonlyNode
     Properties:
       Actions:
         - TargetGroupArn: !Ref ReadonlyNodeTargetGroup
@@ -477,9 +492,9 @@ Resources:
             - !Ref PublicSubnet1
             - !Ref PublicSubnet2
           LaunchConfigurationName: !Ref "ECSNodeLaunchConfiguration"
-          MinSize: 2
-          MaxSize: 2
-          DesiredCapacity: 2
+          MinSize: !If [ShouldLaunchReadonlyNode, 2, 1]
+          MaxSize: !If [ShouldLaunchReadonlyNode, 2, 1]
+          DesiredCapacity: !If [ShouldLaunchReadonlyNode, 2, 1]
 
   ECSNodeLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -575,6 +590,7 @@ Resources:
 
   ReadonlyNodeTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    Condition: ShouldLaunchReadonlyNode
     DependsOn:
       - RDSDB
     Properties:
@@ -658,6 +674,7 @@ Resources:
 
   ReadonlyNodeService:
     Type: AWS::ECS::Service
+    Condition: ShouldLaunchReadonlyNode
     DependsOn:
       - ECSAutoScalingGroup
       - PublicLoadBalancer
