@@ -484,7 +484,7 @@ Resources:
                 }
           Environment:
             - Name: TEAMCITY_SERVER_MEM_OPTS
-              Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m -Xmx
+              Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
           MountPoints:
             - ContainerPath: /data/teamcity_server/datadir
               SourceVolume: data
@@ -589,6 +589,7 @@ Resources:
     DependsOn:
       - ECSAutoScalingGroup
       - PublicLoadBalancer
+      - MainNodeService
     Properties:
       ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityServer', 'ReadonlyNode']]
       Cluster:
