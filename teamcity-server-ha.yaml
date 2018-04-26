@@ -397,7 +397,6 @@ Resources:
   ECSAutoScalingGroup:
         Type: AWS::AutoScaling::AutoScalingGroup
         DependsOn:
-          - RDSDB
           - EfsMountTarget1
           - EfsMountTarget2
         Properties:
