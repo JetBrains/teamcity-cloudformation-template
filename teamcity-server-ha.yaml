@@ -533,6 +533,7 @@ Resources:
 
   AgentLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
+    Condition: ShouldLaunchAgents
     Properties:
       ImageId: !FindInMap [ AWSRegionToAMI, !Ref 'AWS::Region' , "AMI" ]
       KeyName: !Ref 'KeyName'
