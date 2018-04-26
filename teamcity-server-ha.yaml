@@ -503,6 +503,8 @@ Resources:
 
   ReadonlyNodeTaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - RDSDB
     Properties:
       Volumes:
         - Name: data_main
