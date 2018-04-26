@@ -10,25 +10,25 @@ Parameters:
         AllowedPattern: ".+"
         Default: latest
 
-    ContainerCpu:
+    ServerContainerCpu:
         Type: Number
         Default: 1024
         Description: How much CPU to give the container running TeamCity server. 1024 is 1 CPU
 
-    ContainerMemory:
+    ServerContainerMemory:
         Type: Number
         Default: 4096
         Description: How much memory in megabytes to give the container running TeamCity server
 
     KeyName:
-        Description: The existing EC2 KeyPair for SSH access to the EC2 instance running container with TeamCity Server
+        Description: The existing EC2 KeyPair for SSH access to the EC2 instance running container with TeamCity server and agents
         Type: AWS::EC2::KeyPair::KeyName
         AllowedPattern: ".+"
 
     ServerInstanceType:
         Description: The instance type for the EC2 instance running container with TeamCity Server
         Type: String
-        Default: t2.medium
+        Default: c5.large
         AllowedValues:
           - t2.medium
           - t2.large
@@ -57,22 +57,12 @@ Parameters:
           - c4.2xlarge
           - c4.4xlarge
           - c4.8xlarge
-          - c3.large
-          - c3.xlarge
-          - c3.2xlarge
-          - c3.4xlarge
-          - c3.8xlarge
           - r4.large
           - r4.xlarge
           - r4.2xlarge
           - r4.4xlarge
           - r4.8xlarge
           - r4.16xlarge
-          - r3.large
-          - r3.xlarge
-          - r3.2xlarge
-          - r3.4xlarge
-          - r3.8xlarge
 
     DBInstanceType:
             Description: The instance type for the RDS instance for TeamCity Database
@@ -102,18 +92,91 @@ Parameters:
         MinLength: 8
         NoEcho: true
 
+    AgentInstanceType:
+        Description: The instance type for the EC2 instance running container with TeamCity Build Agent
+        Type: String
+        Default: t2.medium
+        AllowedValues:
+          - t2.small
+          - t2.medium
+          - t2.large
+          - t2.xlarge
+          - t2.2xlarge
+          - m5.xlarge
+          - m5.2xlarge
+          - m5.4xlarge
+          - m5.12xlarge
+          - m5.24xlarge
+          - m4.large
+          - m4.xlarge
+          - m4.2xlarge
+          - m4.4xlarge
+          - m4.10xlarge
+          - m4.16xlarge
+          - m4.large
+          - c5.large
+          - c5.xlarge
+          - c5.2xlarge
+          - c5.4xlarge
+          - c5.9xlarge
+          - c5.18xlarge
+          - c4.large
+          - c4.xlarge
+          - c4.2xlarge
+          - c4.4xlarge
+          - c4.8xlarge
+          - r4.large
+          - r4.xlarge
+          - r4.2xlarge
+          - r4.4xlarge
+          - r4.8xlarge
+          - r4.16xlarge
+
+    AgentNumber:
+      Type: Number
+      Default: 1
+      Description: Number of build agents to start. Set '0' to start TeamCity server without build agents connected.
+
+    AgentContainerCpu:
+      Type: Number
+      Default: 1024
+      Description: How much CPU to give the container running TeamCity build agent. 1024 is 1 CPU
+
+    AgentContainerMemory:
+      Type: Number
+      Default: 2048
+      Description: How much memory in megabytes to give the container running TeamCity build agent
+
 Metadata:
     AWS::CloudFormation::Interface:
         ParameterGroups:
-          -
-            Label:
+          - Label:
+              default: ""
+            Parameters:
+              - TeamCityVersion
+              - KeyName
+          - Label:
               default: "TeamCity Server"
             Parameters:
               - ServerInstanceType
-              - KeyName
-              - TeamCityVersion
+              - ServerContainerCpu
+              - ServerContainerMemory
+          - Label:
+              default: "Database"
+            Parameters:
+              - DBInstanceType
+              - DBPassword
+          - Label:
+              default: "Build Agents"
+            Parameters:
+              - AgentNumber
+              - AgentInstanceType
+              - AgentContainerCpu
+              - AgentContainerMemory
         ParameterLabels:
           ServerInstanceType:
+            default: "EC2 Instance Type"
+          AgentInstanceType:
             default: "EC2 Instance Type"
           KeyName:
             default: "EC2 KeyPair"
@@ -123,6 +186,16 @@ Metadata:
             default: "RDS Database Instance Type"
           DBPassword:
             default: "TeamCity Database Password"
+          ServerContainerMemory:
+            default: "Container Memory"
+          AgentContainerMemory:
+            default: "Container Memory"
+          ServerContainerCpu:
+            default: "Container CPU"
+          AgentContainerCpu:
+            default: "Container CPU"
+          AgentNumber:
+            default: "Agents Number"
 
 Mappings:
 
@@ -468,8 +541,8 @@ Resources:
       ContainerDefinitions:
         - Name: 'teamcity-server'
           Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
-          Cpu: !Ref 'ContainerCpu'
-          Memory: !Ref 'ContainerMemory'
+          Cpu: "ServerContainerCpu"
+          Memory: "ServerContainerMemory"
           Essential: true
           Command:
             - "/bin/bash"
@@ -521,8 +594,8 @@ Resources:
       ContainerDefinitions:
         - Name: 'teamcity-server'
           Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
-          Cpu: !Ref 'ContainerCpu'
-          Memory: !Ref 'ContainerMemory'
+          Cpu: "ServerContainerCpu"
+          Memory: "ServerContainerMemory"
           Essential: true
           Command:
             - "/bin/bash"
@@ -701,7 +774,7 @@ Resources:
       GroupDescription: !Sub TeamCity ${AWS::StackName} Database
       SecurityGroupIngress:
         - IpProtocol: -1
-          CidrIp: 10.0.0.0/24
+          CidrIp: 0.0.0.0/0
 
   RDSParamGroup:
     Type: AWS::RDS::DBParameterGroup
@@ -721,8 +794,8 @@ Resources:
     Properties:
       DBSubnetGroupDescription: !Sub TeamCity ${AWS::StackName} DB
       SubnetIds:
-        - !Ref 'PrivateSubnet1'
-        - !Ref 'PrivateSubnet2'
+        - !Ref 'PublicSubnet1'
+        - !Ref 'PublicSubnet2'
 
   #  Logging
 
