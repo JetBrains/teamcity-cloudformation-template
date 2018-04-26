@@ -411,7 +411,7 @@ Resources:
       SecurityGroups:
         - !Ref PublicLoadBalancerSG
 
-  MainNodeTargetGroup:
+  MainServerNodeTargetGroup:
       Type: AWS::ElasticLoadBalancingV2::TargetGroup
       Properties:
         HealthCheckIntervalSeconds: 6
@@ -426,7 +426,7 @@ Resources:
         TargetType: instance
         VpcId: !Ref 'VPC'
 
-  ReadonlyNodeTargetGroup:
+  ReadonlyServerNodeTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Condition: ShouldLaunchReadonlyNode
     Properties:
@@ -448,7 +448,7 @@ Resources:
       - PublicLoadBalancer
     Properties:
       DefaultActions:
-        - TargetGroupArn: !Ref MainNodeTargetGroup
+        - TargetGroupArn: !Ref MainServerNodeTargetGroup
           Type: 'forward'
       LoadBalancerArn: !Ref PublicLoadBalancer
       Port: 80
@@ -458,7 +458,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
-        - TargetGroupArn: !Ref MainNodeTargetGroup
+        - TargetGroupArn: !Ref MainServerNodeTargetGroup
           Type: 'forward'
       Conditions:
         - Field: path-pattern
@@ -472,7 +472,7 @@ Resources:
     Condition: ShouldLaunchReadonlyNode
     Properties:
       Actions:
-        - TargetGroupArn: !Ref ReadonlyNodeTargetGroup
+        - TargetGroupArn: !Ref ReadonlyServerNodeTargetGroup
           Type: 'forward'
       Conditions:
         - Field: path-pattern
@@ -582,8 +582,8 @@ Resources:
       ContainerDefinitions:
         - Name: 'teamcity-server'
           Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
-          Cpu: "ServerContainerCpu"
-          Memory: "ServerContainerMemory"
+          Cpu: !Ref ServerContainerCpu
+          Memory: !Ref ServerContainerMemory
           Essential: true
           Command:
             - "/bin/bash"
@@ -636,8 +636,8 @@ Resources:
       ContainerDefinitions:
         - Name: 'teamcity-server'
           Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
-          Cpu: "ServerContainerCpu"
-          Memory: "ServerContainerMemory"
+          Cpu: !Ref ServerContainerCpu
+          Memory: !Ref ServerContainerMemory
           Essential: true
           Command:
             - "/bin/bash"
@@ -675,18 +675,19 @@ Resources:
   AgentTaskDefinition:
       Type: AWS::ECS::TaskDefinition
       Condition: ShouldLaunchAgents
+      DependsOn:
+        - PublicLoadBalancer
+        - MainServerNodeService
       Properties:
         ContainerDefinitions:
           - Name: 'teamcity-agenr'
             Image: !Join [':', ['jetbrains/teamcity-agent', !Ref 'TeamCityVersion']]
-            Cpu: !Ref "AgentContainerCpu"
-            Memory: !Ref "AgentContainerMemory"
+            Cpu: !Ref AgentContainerCpu
+            Memory: !Ref AgentContainerMemory
             Essential: true
             Environment:
-              - Name: TEAMCITY_SERVER_OPTS
-                Value: -Dteamcity.server.nodeSpecificDataPath=/data/teamcity_server_ro/datadir -Dteamcity.server.role=read-only-server
-              - Name: TEAMCITY_SERVER_MEM_OPTS
-                Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
+              - Name: SERVER_URL
+                Value: !GetAtt [PublicLoadBalancer, DNSName]
             LogConfiguration:
               LogDriver: 'awslogs'
               Options:
@@ -718,7 +719,7 @@ Resources:
         - ContainerName: 'teamcity-server'
           ContainerPort: 8111
           TargetGroupArn:
-            Ref: MainNodeTargetGroup
+            Ref: MainServerNodeTargetGroup
 
   ReadonlyServerNodeService:
     Type: AWS::ECS::Service
@@ -746,7 +747,7 @@ Resources:
         - ContainerName: 'teamcity-server'
           ContainerPort: 8111
           TargetGroupArn:
-            Ref: ReadonlyNodeTargetGroup
+            Ref: ReadonlyServerNodeTargetGroup
 
   AgentService:
     Type: AWS::ECS::Service
