@@ -241,8 +241,12 @@ Mappings:
             AMI: ami-250eb858
 
 Conditions:
+
   ShouldLaunchReadonlyNode:
     !Equals [true, !Ref ServerHA]
+
+  ShouldLaunchAgents:
+    !Not [!Equals [0, !Ref AgentNumber]]
 
 Resources:
 
@@ -482,21 +486,33 @@ Resources:
         Properties:
           ClusterName: !Ref AWS::StackName
 
-  ECSAutoScalingGroup:
-        Type: AWS::AutoScaling::AutoScalingGroup
-        DependsOn:
-          - EfsMountTarget1
-          - EfsMountTarget2
-        Properties:
-          VPCZoneIdentifier:
-            - !Ref PublicSubnet1
-            - !Ref PublicSubnet2
-          LaunchConfigurationName: !Ref "ECSNodeLaunchConfiguration"
-          MinSize: !If [ShouldLaunchReadonlyNode, 2, 1]
-          MaxSize: !If [ShouldLaunchReadonlyNode, 2, 1]
-          DesiredCapacity: !If [ShouldLaunchReadonlyNode, 2, 1]
+  ServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - EfsMountTarget1
+      - EfsMountTarget2
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      LaunchConfigurationName: !Ref "ServerLaunchConfiguration"
+      MinSize: !If [ShouldLaunchReadonlyNode, 2, 1]
+      MaxSize: !If [ShouldLaunchReadonlyNode, 2, 1]
+      DesiredCapacity: !If [ShouldLaunchReadonlyNode, 2, 1]
 
-  ECSNodeLaunchConfiguration:
+  AgentAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Condition: ShouldLaunchAgents
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      LaunchConfigurationName: !Ref "AgentLaunchConfiguration"
+      MinSize: !Ref AgentNumber
+      MaxSize: !Ref AgentNumber
+      DesiredCapacity: !Ref AgentNumber
+
+  ServerLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
       ImageId: !FindInMap [ AWSRegionToAMI, !Ref 'AWS::Region' , "AMI" ]
@@ -514,6 +530,16 @@ Resources:
            sudo mount -t efs ${FileSystem}:/ /mnt/efs
            service docker stop
            service docker start
+
+  AgentLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !FindInMap [ AWSRegionToAMI, !Ref 'AWS::Region' , "AMI" ]
+      KeyName: !Ref 'KeyName'
+      InstanceType: !Ref AgentInstanceType
+      SecurityGroups:
+        - !Ref ECSNodeSecurityGroup
+      IamInstanceProfile: !Ref ECSNodeInstanceProfile
 
   ECSNodeInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -538,7 +564,7 @@ Resources:
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
 
-  MainNodeTaskDefinition:
+  MainServerNodeTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
       - RDSDB
@@ -588,7 +614,7 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: 'aws/ecs/teamcity-server'
 
-  ReadonlyNodeTaskDefinition:
+  ReadonlyServerNodeTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Condition: ShouldLaunchReadonlyNode
     DependsOn:
@@ -646,10 +672,32 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: 'aws/ecs/teamcity-server'
 
-  MainNodeService:
+  AgentTaskDefinition:
+      Type: AWS::ECS::TaskDefinition
+      Condition: ShouldLaunchAgents
+      Properties:
+        ContainerDefinitions:
+          - Name: 'teamcity-agenr'
+            Image: !Join [':', ['jetbrains/teamcity-agent', !Ref 'TeamCityVersion']]
+            Cpu: !Ref "AgentContainerCpu"
+            Memory: !Ref "AgentContainerMemory"
+            Essential: true
+            Environment:
+              - Name: TEAMCITY_SERVER_OPTS
+                Value: -Dteamcity.server.nodeSpecificDataPath=/data/teamcity_server_ro/datadir -Dteamcity.server.role=read-only-server
+              - Name: TEAMCITY_SERVER_MEM_OPTS
+                Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
+            LogConfiguration:
+              LogDriver: 'awslogs'
+              Options:
+                awslogs-group: !Ref ECSLogGroup
+                awslogs-region: !Ref AWS::Region
+                awslogs-stream-prefix: 'aws/ecs/teamcity-agent'
+
+  MainServerNodeService:
     Type: AWS::ECS::Service
     DependsOn:
-      - ECSAutoScalingGroup
+      - ServerAutoScalingGroup
       - PublicLoadBalancer
     Properties:
       ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityServer', 'MainNode']]
@@ -662,7 +710,7 @@ Resources:
       DesiredCount: 1
       HealthCheckGracePeriodSeconds: 600
       TaskDefinition:
-        Ref: MainNodeTaskDefinition
+        Ref: "MainServerNodeTaskDefinition"
       PlacementStrategies:
         - Type: "spread"
           Field: "attribute:ecs.availability-zone"
@@ -672,13 +720,13 @@ Resources:
           TargetGroupArn:
             Ref: MainNodeTargetGroup
 
-  ReadonlyNodeService:
+  ReadonlyServerNodeService:
     Type: AWS::ECS::Service
     Condition: ShouldLaunchReadonlyNode
     DependsOn:
-      - ECSAutoScalingGroup
+      - ServerAutoScalingGroup
       - PublicLoadBalancer
-      - MainNodeService
+      - MainServerNodeService
     Properties:
       ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityServer', 'ReadonlyNode']]
       Cluster:
@@ -690,7 +738,7 @@ Resources:
       DesiredCount: 1
       HealthCheckGracePeriodSeconds: 600
       TaskDefinition:
-        Ref: ReadonlyNodeTaskDefinition
+        Ref: "ReadonlyServerNodeTaskDefinition"
       PlacementStrategies:
         - Type: "spread"
           Field: "attribute:ecs.availability-zone"
@@ -699,6 +747,23 @@ Resources:
           ContainerPort: 8111
           TargetGroupArn:
             Ref: ReadonlyNodeTargetGroup
+
+  AgentService:
+    Type: AWS::ECS::Service
+    Condition: ShouldLaunchAgents
+    DependsOn:
+      - AgentAutoScalingGroup
+    Properties:
+          ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityAgents']]
+          Cluster:
+            Ref: ECSCluster
+          LaunchType: EC2
+          DeploymentConfiguration:
+            MaximumPercent: 200
+            MinimumHealthyPercent: 0
+          DesiredCount: !Ref AgentNumber
+          TaskDefinition:
+            Ref: "AgentTaskDefinition"
 
   FileSystem:
     Type: AWS::EFS::FileSystem
