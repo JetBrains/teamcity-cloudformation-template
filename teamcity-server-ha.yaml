@@ -926,4 +926,8 @@ Resources:
       Certificates:
         - CertificateArn: !Ref Certificate
 
+Outputs:
+  TeamCityServerUrl:
+    Description: TeamCity Server URL
+    Value: !Join ["", [ "http://", !GetAtt [PublicLoadBalancer, DNSName], "/" ]]
 
