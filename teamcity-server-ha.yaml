@@ -28,7 +28,7 @@ Parameters:
 
     ServerContainerMemory:
         Type: Number
-        Default: 4096
+        Default: 3700
         Description: How much memory in megabytes to give the container running TeamCity server
 
     ServerInstanceType:
@@ -153,6 +153,11 @@ Parameters:
       Default: 2048
       Description: How much memory in megabytes to give the container running TeamCity build agent
 
+    CertificateDomainName:
+      Type: String
+      Description: Fully Qualified Domain Name (FQDN) of the certificate. Email validation will start. Leave empty to not setup SSL access to the server.
+      AllowedPattern: ^$|^(\*\.)?(((?!-)[A-Za-z0-9-]{0,62}[A-Za-z0-9])\.)+((?!-)[A-Za-z0-9-]{1,62}[A-Za-z0-9])$
+
 Metadata:
     AWS::CloudFormation::Interface:
         ParameterGroups:
@@ -168,6 +173,7 @@ Metadata:
               - ServerInstanceType
               - ServerContainerCpu
               - ServerContainerMemory
+              - CertificateDomainName
           - Label:
               default: "Database"
             Parameters:
@@ -205,6 +211,8 @@ Metadata:
             default: "Container CPU"
           AgentNumber:
             default: "Agents Number"
+          CertificateDomainName:
+            default: "SSL Certificate Domain"
 
 Mappings:
 
@@ -247,6 +255,9 @@ Conditions:
 
   ShouldLaunchAgents:
     !Not [!Equals [0, !Ref AgentNumber]]
+
+  ShouldRequestCertificate:
+    !Not [!Equals ['', !Ref CertificateDomainName]]
 
 Resources:
 
@@ -886,10 +897,33 @@ Resources:
         - !Ref 'PublicSubnet2'
 
   #  Logging
-
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       RetentionInDays: 1
+
+  #SSL support
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Condition: ShouldRequestCertificate
+    Properties:
+      DomainName: !Ref 'CertificateDomainName'
+
+  SecuredLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Condition: ShouldRequestCertificate
+    DependsOn:
+      - PublicLoadBalancer
+      - Certificate
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref MainServerNodeTargetGroup
+          Type: 'forward'
+      LoadBalancerArn: !Ref PublicLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: "ELBSecurityPolicy-2016-08"
+      Certificates:
+        - CertificateArn: !Ref Certificate
 
 
