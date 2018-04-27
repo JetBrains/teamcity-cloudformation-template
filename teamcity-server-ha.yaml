@@ -430,6 +430,9 @@ Resources:
         HealthCheckProtocol: HTTP
         HealthCheckTimeoutSeconds: 5
         HealthyThresholdCount: 2
+        TargetGroupAttributes:
+          - Key: deregistration_delay.timeout_seconds
+            Value: '10'
         Matcher:
           HttpCode: '200'
         Port: 8111
@@ -722,7 +725,7 @@ Resources:
         Ref: ECSCluster
       LaunchType: EC2
       DeploymentConfiguration:
-        MaximumPercent: 200
+        MaximumPercent: 100
         MinimumHealthyPercent: 0
       DesiredCount: 1
       HealthCheckGracePeriodSeconds: 600
@@ -750,7 +753,7 @@ Resources:
         Ref: ECSCluster
       LaunchType: EC2
       DeploymentConfiguration:
-        MaximumPercent: 200
+        MaximumPercent: 100
         MinimumHealthyPercent: 0
       DesiredCount: 1
       HealthCheckGracePeriodSeconds: 600
@@ -776,7 +779,7 @@ Resources:
             Ref: ECSCluster
           LaunchType: EC2
           DeploymentConfiguration:
-            MaximumPercent: 200
+            MaximumPercent: 100
             MinimumHealthyPercent: 0
           DesiredCount: !Ref AgentNumber
           TaskDefinition:
