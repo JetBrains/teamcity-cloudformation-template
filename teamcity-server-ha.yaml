@@ -556,23 +556,25 @@ Resources:
       IamInstanceProfile: !Ref ECSNodeInstanceProfile
       UserData:
         Fn::Base64: !Sub |
-           #!/bin/bash
-           echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
-           tee /etc/haproxy/haproxy.config <<EOF
-           global
-               daemon
-           defaults
-               mode http
-               timeout connect 5000ms
-               timeout client 50000ms
-               timeout server 50000ms
-           frontend http-in
-               bind *:80
-               default_backend tc
-           backend tc
-               server tc_main_node "$TC_MAIN_NODE_URL:80"
-               server tc_ro_node "$TC_RO_NODE_URL:80" backup
-           EOF
+          #!/bin/bash
+          echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+          mkdir -p /etc/haproxy
+          touch /etc/haproxy/haproxy.cfg
+          tee /etc/haproxy/haproxy.cfg <<EOF
+          global
+              daemon
+          defaults
+              mode http
+              timeout connect 5000ms
+              timeout client 50000ms
+              timeout server 50000ms
+          frontend http-in
+              bind *:80
+              default_backend tc
+          backend tc
+              server tc_main_node "$TC_MAIN_NODE_URL:80"
+              server tc_ro_node "$TC_RO_NODE_URL:80" backup
+          EOF
 
   BackendLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -636,6 +638,10 @@ Resources:
     DependsOn:
       - PublicLoadBalancer
     Properties:
+      Volumes:
+        - Name: haproxy-config
+          Host:
+            SourcePath: /etc/haproxy
       ContainerDefinitions:
         - Name: 'haproxy'
           Image: 'haproxy:1.8.8'
@@ -649,6 +655,9 @@ Resources:
               Value: !GetAtt [PublicLoadBalancer, DNSName]
             - Name: TC_RO_NODE_URL
               Value: !GetAtt [PublicLoadBalancer, DNSName]
+          MountPoints:
+            - ContainerPath: /usr/local/etc/haproxy
+              SourceVolume: haproxy-config
           LogConfiguration:
             LogDriver: 'awslogs'
             Options:
