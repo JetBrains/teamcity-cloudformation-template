@@ -1,0 +1,347 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description:
+
+Parameters:
+    KeyName:
+        Description: The existing EC2 KeyPair for SSH access to the EC2 instance running container with TeamCity server and agents
+        Type: AWS::EC2::KeyPair::KeyName
+        AllowedPattern: ".+"
+
+Mappings:
+
+  AWSRegionToAMI:
+        eu-central-1:
+            AMI: ami-9fc39c74
+        ap-northeast-1:
+            AMI: ami-a99d8ad5
+        ap-northeast-2:
+            AMI: ami-9d56f9f3
+        ca-central-1:
+            AMI: ami-897ff9ed
+        ap-south-1:
+            AMI: ami-72edc81d
+        sa-east-1:
+            AMI: ami-4a7e2826
+        ap-southeast-2:
+            AMI: ami-efda148d
+        ap-southeast-1:
+            AMI: ami-846144f8
+        us-east-1:
+            AMI: ami-aff65ad2
+        us-east-2:
+            AMI: ami-64300001
+        us-west-2:
+            AMI: ami-40ddb938
+        us-west-1:
+            AMI: ami-69677709
+        eu-west-1:
+            AMI: ami-2d386654
+        eu-west-2:
+            AMI: ami-2218f945
+        eu-west-3:
+            AMI: ami-250eb858
+
+Resources:
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub TeamCity-${AWS::StackName}
+
+  InternetGateway:
+      Type: AWS::EC2::InternetGateway
+      Properties:
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity-${AWS::StackName}
+
+  InternetGatewayAttachment:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+          InternetGatewayId: !Ref InternetGateway
+          VpcId: !Ref VPC
+
+  PublicSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+          VpcId: !Ref VPC
+          AvailabilityZone: !Select [ 0, !GetAZs "" ]
+          CidrBlock: 10.0.0.0/24
+          MapPublicIpOnLaunch: true
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity ${AWS::StackName} Public Subnet (AZ1)
+
+  PublicSubnet2:
+      Type: AWS::EC2::Subnet
+      Properties:
+          VpcId: !Ref VPC
+          AvailabilityZone: !Select [ 1, !GetAZs "" ]
+          CidrBlock: 10.0.1.0/24
+          MapPublicIpOnLaunch: true
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity ${AWS::StackName} Public Subnet (AZ2)
+
+  PrivateSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+          VpcId: !Ref VPC
+          AvailabilityZone: !Select [ 0, !GetAZs "" ]
+          CidrBlock: 10.0.2.0/24
+          MapPublicIpOnLaunch: false
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity ${AWS::StackName} Private Subnet (AZ1)
+
+  PrivateSubnet2:
+      Type: AWS::EC2::Subnet
+      Properties:
+          VpcId: !Ref VPC
+          AvailabilityZone: !Select [ 1, !GetAZs "" ]
+          CidrBlock: 10.0.3.0/24
+          MapPublicIpOnLaunch: false
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity ${AWS::StackName} Private Subnet (AZ2)
+
+  PublicRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties:
+          VpcId: !Ref VPC
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity ${AWS::StackName} Public Routes
+
+  DefaultPublicRoute:
+      Type: AWS::EC2::Route
+      DependsOn: InternetGatewayAttachment
+      Properties:
+          RouteTableId: !Ref PublicRouteTable
+          DestinationCidrBlock: 0.0.0.0/0
+          GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+          RouteTableId: !Ref PublicRouteTable
+          SubnetId: !Ref PublicSubnet1
+
+  PublicSubnet2RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+          RouteTableId: !Ref PublicRouteTable
+          SubnetId: !Ref PublicSubnet2
+
+  PrivateRouteTable1:
+      Type: AWS::EC2::RouteTable
+      Properties:
+          VpcId: !Ref VPC
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity ${AWS::StackName} Private Routes (AZ1)
+
+  DefaultPrivateRoute1:
+      Type: AWS::EC2::Route
+      Properties:
+          RouteTableId: !Ref PrivateRouteTable1
+          DestinationCidrBlock: 0.0.0.0/0
+          GatewayId: !Ref InternetGateway
+
+  PrivateSubnet1RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+          RouteTableId: !Ref PrivateRouteTable1
+          SubnetId: !Ref PrivateSubnet1
+
+  PrivateRouteTable2:
+      Type: AWS::EC2::RouteTable
+      Properties:
+          VpcId: !Ref VPC
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity ${AWS::StackName} Private Routes (AZ2)
+
+  DefaultPrivateRoute2:
+      Type: AWS::EC2::Route
+      Properties:
+          RouteTableId: !Ref PrivateRouteTable2
+          DestinationCidrBlock: 0.0.0.0/0
+          GatewayId: !Ref InternetGateway
+
+  PrivateSubnet2RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+          RouteTableId: !Ref PrivateRouteTable2
+          SubnetId: !Ref PrivateSubnet2
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Ref AWS::StackName
+
+  ECSNodeSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: ECS node SG
+        VpcId: !Ref 'VPC'
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '8111'
+            ToPort: '8111'
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: '22'
+            ToPort: '22'
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: '1024'
+            ToPort: '65535'
+            CidrIp: 0.0.0.0/0
+        SecurityGroupEgress:
+          - IpProtocol: -1
+            FromPort: '0'
+            ToPort: '0'
+            CidrIp: 0.0.0.0/0
+
+  FrontendTaskDefinition:
+      Type: AWS::ECS::TaskDefinition
+      DependsOn:
+        - PublicLoadBalancer
+      Properties:
+        ContainerDefinitions:
+          - Name: 'haproxy'
+            Image: 'haproxy:1.8.8'
+            Cpu: 1024
+            Memory: 2400
+            Essential: true
+            PortMappings:
+              - ContainerPort: 80
+            Environment:
+              - Name: TC_MAIN_NODE_URL
+                Value: !GetAtt [PublicLoadBalancer, DNSName]
+              - Name: TC_RO_NODE_URL
+                Value: !GetAtt [PublicLoadBalancer, DNSName]
+            LogConfiguration:
+              LogDriver: 'awslogs'
+              Options:
+                awslogs-group: !Ref ECSLogGroup
+                awslogs-region: !Ref AWS::Region
+                awslogs-stream-prefix: 'aws/ecs/frontend'
+
+  FrontendService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - FrontendAutoScalingGroup
+      - PublicLoadBalancer
+    Properties:
+      ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'Frontend']]
+      Cluster:
+        Ref: ECSCluster
+      LaunchType: EC2
+      DeploymentConfiguration:
+        MaximumPercent: 100
+        MinimumHealthyPercent: 0
+      DesiredCount: 1
+      HealthCheckGracePeriodSeconds: 600
+      TaskDefinition:
+        Ref: "FrontendTaskDefinition"
+      PlacementStrategies:
+        - Type: "spread"
+          Field: "attribute:ecs.availability-zone"
+      LoadBalancers:
+        - ContainerName: 'haproxy'
+          ContainerPort: 80
+          TargetGroupArn:
+            Ref: FrontendTargetGroup
+
+  ECSNodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref ECSNodeInstanceRole
+
+  ECSNodeInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+
+  FrontendAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      LaunchConfigurationName: !Ref "FrontendLaunchConfiguration"
+      MinSize: 1
+      MaxSize: 3
+      DesiredCapacity: 2
+
+  FrontendLaunchConfiguration:
+      Type: AWS::AutoScaling::LaunchConfiguration
+      Properties:
+        ImageId: !FindInMap [ AWSRegionToAMI, !Ref 'AWS::Region' , "AMI" ]
+        KeyName: !Ref 'KeyName'
+        InstanceType: 't2.medium'
+        SecurityGroups:
+          - !Ref ECSNodeSecurityGroup
+        IamInstanceProfile: !Ref ECSNodeInstanceProfile
+        UserData:
+          Fn::Base64: !Sub |
+             #!/bin/bash
+             echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+             tee /etc/haproxy/haproxy.config <<EOF
+             global
+                 daemon
+             defaults
+                 mode http
+                 timeout connect 5000ms
+                 timeout client 50000ms
+                 timeout server 50000ms
+             frontend http-in
+                 bind *:80
+                 default_backend tc
+             backend tc
+                 server tc_main_node "$TC_MAIN_NODE_URL:80"
+                 server tc_ro_node "$TC_RO_NODE_URL:80" backup
+             EOF
+
+  FrontendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 6
+      HealthCheckPath: /login.html #TODO review
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '10'
+      Matcher:
+        HttpCode: '200'
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !Ref 'VPC'
+
+  #  Logging
+  ECSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 1
