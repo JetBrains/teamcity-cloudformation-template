@@ -1,6 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description:
-
+Description: Foo
 Parameters:
     KeyName:
         Description: The existing EC2 KeyPair for SSH access to the EC2 instance running container with TeamCity server and agents
@@ -192,6 +191,32 @@ Resources:
       SecurityGroups:
         - !Ref PublicLoadBalancerSG
 
+  TCMainNodeLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '30'
+      Subnets:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref InternalLoadBalancerSG
+
+  TCRONodeLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '30'
+      Subnets:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      SecurityGroups:
+        - !Ref InternalLoadBalancerSG
+
   PublicLoadBalancerSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -199,6 +224,16 @@ Resources:
       VpcId: !Ref 'VPC'
       SecurityGroupIngress:
           # Allow access to ALB from anywhere on the internet
+          - CidrIp: 0.0.0.0/0
+            IpProtocol: -1
+
+  InternalLoadBalancerSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access to the internal load balancer
+      VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+          #TODO: review, should allow access from VPC only
           - CidrIp: 0.0.0.0/0
             IpProtocol: -1
 
@@ -246,7 +281,8 @@ Resources:
   FrontendTaskDefinition:
       Type: AWS::ECS::TaskDefinition
       DependsOn:
-        - PublicLoadBalancer
+        - TCMainNodeLoadBalancer
+        - TCRONodeLoadBalancer
       Properties:
         ContainerDefinitions:
           - Name: 'haproxy'
@@ -258,9 +294,9 @@ Resources:
               - ContainerPort: 80
             Environment:
               - Name: TC_MAIN_NODE_URL
-                Value: !GetAtt [PublicLoadBalancer, DNSName]
+                Value: !GetAtt [TCMainNodeLoadBalancer, DNSName]
               - Name: TC_RO_NODE_URL
-                Value: !GetAtt [PublicLoadBalancer, DNSName]
+                Value: !GetAtt [TCRONodeLoadBalancer, DNSName]
             LogConfiguration:
               LogDriver: 'awslogs'
               Options:
