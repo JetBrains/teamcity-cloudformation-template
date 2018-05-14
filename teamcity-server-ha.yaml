@@ -640,6 +640,7 @@ Resources:
           global
               daemon
               log 127.0.0.1 local0 info
+              maxconn 256
           resolvers dns
               nameserver dns 10.0.0.2
               resolve_retries       3
