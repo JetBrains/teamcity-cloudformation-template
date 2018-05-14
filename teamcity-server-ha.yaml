@@ -423,6 +423,32 @@ Resources:
       SecurityGroups:
         - !Ref PublicLoadBalancerSG
 
+  TCMainNodeLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '30'
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      SecurityGroups:
+        - !Ref PublicLoadBalancerSG
+
+  TCRONodeLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+      - Key: idle_timeout.timeout_seconds
+        Value: '30'
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      SecurityGroups:
+        - !Ref PublicLoadBalancerSG
+
   FrontendTargetGroup:
       Type: AWS::ElasticLoadBalancingV2::TargetGroup
       Properties:
@@ -501,6 +527,56 @@ Resources:
           Values:
           - '*'
       ListenerArn: !Ref PublicLoadBalancerListener
+      Priority: 1
+
+  TCMainNodeLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - TCMainNodeLoadBalancer
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref MainServerNodeTargetGroup
+          Type: 'forward'
+      LoadBalancerArn: !Ref TCMainNodeLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  TCMainNodeLoadBalancerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref MainServerNodeTargetGroup
+          Type: 'forward'
+      Conditions:
+        - Field: path-pattern
+          Values:
+          - '*'
+      ListenerArn: !Ref TCMainNodeLoadBalancerListener
+      Priority: 1
+
+  TCRONodeLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - TCRONodeLoadBalancer
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref ReadonlyServerNodeTargetGroup
+          Type: 'forward'
+      LoadBalancerArn: !Ref TCRONodeLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  TCRONodeLoadBalancerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref ReadonlyServerNodeTargetGroup
+          Type: 'forward'
+      Conditions:
+        - Field: path-pattern
+          Values:
+          - '*'
+      ListenerArn: !Ref TCRONodeLoadBalancerListener
       Priority: 1
 
   ECSCluster:
@@ -637,6 +713,8 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
       - PublicLoadBalancer
+      - TCMainNodeLoadBalancer
+      - TCRONodeLoadBalancer
     Properties:
       Volumes:
         - Name: haproxy-config
@@ -652,9 +730,9 @@ Resources:
             - ContainerPort: 80
           Environment:
             - Name: TC_MAIN_NODE_URL
-              Value: !GetAtt [PublicLoadBalancer, DNSName]
+              Value: !GetAtt [TCMainNodeLoadBalancer, DNSName]
             - Name: TC_RO_NODE_URL
-              Value: !GetAtt [PublicLoadBalancer, DNSName]
+              Value: !GetAtt [TCRONodeLoadBalancer, DNSName]
           MountPoints:
             - ContainerPath: /usr/local/etc/haproxy
               SourceVolume: haproxy-config
