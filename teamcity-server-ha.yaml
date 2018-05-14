@@ -639,7 +639,9 @@ Resources:
           tee /etc/haproxy/haproxy.cfg <<EOF
           global
               daemon
+              log 127.0.0.1 local0 info
           defaults
+              log global
               mode http
               timeout connect 5000ms
               timeout client 50000ms
