@@ -640,6 +640,11 @@ Resources:
           global
               daemon
               log 127.0.0.1 local0 info
+          resolvers dns
+              nameserver dns 10.0.0.2
+              resolve_retries       3
+              timeout resolve       1s
+              timeout retry         1s
           defaults
               log global
               mode http
@@ -650,8 +655,8 @@ Resources:
               bind *:80
               default_backend tc
           backend tc
-              server tc_main_node "$TC_MAIN_NODE_URL:80"
-              server tc_ro_node "$TC_RO_NODE_URL:80" backup
+              server tc_main_node "$TC_MAIN_NODE_URL:80" check resolvers dns
+              server tc_ro_node "$TC_RO_NODE_URL:80" backup check resolvers dns
           EOF
 
   BackendLaunchConfiguration:
