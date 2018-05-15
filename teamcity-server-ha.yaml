@@ -669,8 +669,8 @@ Resources:
               bind *:80
               default_backend tc
           backend tc
-              server tc_main_node "$TC_MAIN_NODE_URL:80" check resolvers dns
-              server tc_ro_node "$TC_RO_NODE_URL:80" backup check resolvers dns
+              server tc_main_node \"\$TC_MAIN_NODE_URL:80\" check resolvers dns
+              server tc_ro_node \"\$TC_RO_NODE_URL:80\" backup check resolvers dns
           EOF
 
   BackendLaunchConfiguration:
