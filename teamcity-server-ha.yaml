@@ -594,6 +594,10 @@ Resources:
       MinSize: 1
       MaxSize: 3
       DesiredCapacity: 2
+      Tags:
+        - Key: teamcity.node-responsibility
+          Value: frontend
+          PropagateAtLaunch: 'true'
 
   BackendAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -608,6 +612,10 @@ Resources:
       MinSize: !If [ShouldLaunchReadonlyNode, 2, 1]
       MaxSize: !If [ShouldLaunchReadonlyNode, 2, 1]
       DesiredCapacity: !If [ShouldLaunchReadonlyNode, 2, 1]
+      Tags:
+        - Key: teamcity.node-responsibility
+          Value: backend
+          PropagateAtLaunch: 'true'
 
   AgentAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -620,6 +628,10 @@ Resources:
       MinSize: !Ref AgentNumber
       MaxSize: !Ref AgentNumber
       DesiredCapacity: !Ref AgentNumber
+      Tags:
+        - Key: teamcity.node-responsibility
+          Value: buildAgent
+          PropagateAtLaunch: 'true'
 
   FrontendLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -634,6 +646,7 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+          echo ECS_INSTANCE_ATTRIBUTES={\"teamcity.node-responsibility\": \"frontend\"} >> /etc/ecs/ecs.config
           mkdir -p /etc/haproxy
           touch /etc/haproxy/haproxy.cfg
           tee /etc/haproxy/haproxy.cfg <<EOF
@@ -673,6 +686,7 @@ Resources:
         Fn::Base64: !Sub |
            #!/bin/bash
            echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+           echo ECS_INSTANCE_ATTRIBUTES={\"teamcity.node-responsibility\": \"backend\"} >> /etc/ecs/ecs.config
            sudo yum install -y amazon-efs-utils
            sudo mkdir /mnt/efs
            sudo mount -t efs ${FileSystem}:/ /mnt/efs
@@ -693,6 +707,7 @@ Resources:
               Fn::Base64: !Sub |
                  #!/bin/bash
                  echo ECS_CLUSTER=${ECSCluster} >> /etc/ecs/ecs.config
+                 echo ECS_INSTANCE_ATTRIBUTES={\"teamcity.node-responsibility\": \"buildAgent\"} >> /etc/ecs/ecs.config
 
   ECSNodeInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -724,6 +739,9 @@ Resources:
       - TCMainNodeLoadBalancer
       - TCRONodeLoadBalancer
     Properties:
+      PlacementConstraints:
+        - Type: memberOf
+          Expression: attribute:teamcity.node-responsibility == frontend
       Volumes:
         - Name: haproxy-config
           Host:
@@ -756,6 +774,9 @@ Resources:
     DependsOn:
       - RDSDB
     Properties:
+      PlacementConstraints:
+        - Type: memberOf
+          Expression: attribute:teamcity.node-responsibility == backend
       Volumes:
         - Name: data
           Host:
@@ -776,7 +797,7 @@ Resources:
             - "/bin/bash"
             - "-c"
             - !Sub
-              - "if [ ! -f /data/teamcity_server/datadir/lib/jdbc ]; then mkdir -p /data/teamcity_server/datadir/lib/jdbc; curl -o /data/teamcity_server/datadir/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar; fi; if [ ! -f /data/teamcity_server/datadir/config/database.properties ]; then mkdir -p /data/teamcity_server/datadir/config; echo connectionProperties.user=teamcity > /data/teamcity_server/datadir/config/database.properties; echo connectionProperties.password=${RDSPassword} >> /data/teamcity_server/datadir/config/database.properties; echo connectionUrl=jdbc\:mysql\://${RDSAddress}/teamcitydb >> /data/teamcity_server/datadir/config/database.properties; fi; exec /run-services.sh;"
+              - "if [ ! -f /data/teamcity_server/datadir/lib/jdbc ]; then mkdir -p /data/teamcity_server/datadir/lib/jdbc; curl -o /data/teamcity_server/datadir/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar; fi; if [ ! -f /data/teamcity_server/datadir/config/database.properties ]; then mkdir -p /data/teamcity_server/datadir/config; echo connectionProperties.user=teamcity > /data/teamcity_server/datadir/config/database.properties; echo connectionProperties.password=${RDSPassword} >> /data/teamcity_server/datadir/config/database.properties; echo connectionUrl=jdbc:mysql://${RDSAddress}/teamcitydb >> /data/teamcity_server/datadir/config/database.properties; fi; exec /run-services.sh;"
               - {
                   RDSAddress: !GetAtt [RDSDB, Endpoint.Address],
                   RDSPassword: !Ref 'DBPassword',
@@ -807,6 +828,9 @@ Resources:
     DependsOn:
       - RDSDB
     Properties:
+      PlacementConstraints:
+        - Type: memberOf
+          Expression: attribute:teamcity.node-responsibility == backend
       Volumes:
         - Name: data_main
           Host:
@@ -830,7 +854,7 @@ Resources:
             - "/bin/bash"
             - "-c"
             - !Sub
-              - "if [ ! -f /data/teamcity_server_ro/datadir/lib/jdbc ]; then mkdir -p /data/teamcity_server_ro/datadir/lib/jdbc; curl -o /data/teamcity_server_ro/datadir/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar; fi; if [ ! -f /data/teamcity_server_ro/datadir/config/database.properties ]; then mkdir -p /data/teamcity_server_ro/datadir/config; echo connectionProperties.user=teamcity > /data/teamcity_server_ro/datadir/config/database.properties; echo connectionProperties.password=${RDSPassword} >> /data/teamcity_server_ro/datadir/config/database.properties; echo connectionUrl=jdbc\\:mysql\\://${RDSAddress}/teamcitydb >> /data/teamcity_server_ro/datadir/config/database.properties; fi; exec /run-services.sh;"
+              - "if [ ! -f /data/teamcity_server_ro/datadir/lib/jdbc ]; then mkdir -p /data/teamcity_server_ro/datadir/lib/jdbc; curl -o /data/teamcity_server_ro/datadir/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar; fi; if [ ! -f /data/teamcity_server_ro/datadir/config/database.properties ]; then mkdir -p /data/teamcity_server_ro/datadir/config; echo connectionProperties.user=teamcity > /data/teamcity_server_ro/datadir/config/database.properties; echo connectionProperties.password=${RDSPassword} >> /data/teamcity_server_ro/datadir/config/database.properties; echo connectionUrl=jdbc:mysql://${RDSAddress}/teamcitydb >> /data/teamcity_server_ro/datadir/config/database.properties; fi; exec /run-services.sh;"
               - {
                   RDSAddress: !GetAtt [RDSDB, Endpoint.Address],
                   RDSPassword: !Ref 'DBPassword',
@@ -866,6 +890,9 @@ Resources:
         - PublicLoadBalancer
         - MainServerNodeService
       Properties:
+        PlacementConstraints:
+          - Type: memberOf
+            Expression: attribute:teamcity.node-responsibility == buildAgent
         ContainerDefinitions:
           - Name: 'teamcity-agenr'
             Image: !Join [':', ['jetbrains/teamcity-agent', !Ref 'TeamCityVersion']]
