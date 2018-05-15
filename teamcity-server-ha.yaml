@@ -1044,7 +1044,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 2049
           ToPort: 2049
-          CidrIp: 0.0.0.0/0
+          SourceSecurityGroupId: !Ref "ECSNodeSecurityGroup"
 
   ECSNodeSecurityGroup:
       Type: AWS::EC2::SecurityGroup
@@ -1097,7 +1097,7 @@ Resources:
       GroupDescription: !Sub TeamCity ${AWS::StackName} Database
       SecurityGroupIngress:
         - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
+          SourceSecurityGroupId: !Ref "ECSNodeSecurityGroup"
 
   RDSParamGroup:
     Type: AWS::RDS::DBParameterGroup
