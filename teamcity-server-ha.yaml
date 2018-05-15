@@ -655,7 +655,7 @@ Resources:
               log 127.0.0.1 local0 info
               maxconn 256
           resolvers dns
-              nameserver dns 10.0.0.2
+              nameserver awsdns 10.0.0.2:53
               resolve_retries       3
               timeout resolve       1s
               timeout retry         1s
@@ -921,8 +921,8 @@ Resources:
       LaunchType: EC2
       DeploymentConfiguration:
         MaximumPercent: 100
-        MinimumHealthyPercent: 0
-      DesiredCount: 1
+        MinimumHealthyPercent: 50
+      DesiredCount: 2
       HealthCheckGracePeriodSeconds: 600
       TaskDefinition:
         Ref: "FrontendTaskDefinition"
