@@ -776,6 +776,7 @@ Resources:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
       - RDSDB
+      - ServerMemory
     Properties:
       PlacementConstraints:
         - Type: memberOf
@@ -808,7 +809,11 @@ Resources:
                 }
           Environment:
             - Name: TEAMCITY_SERVER_MEM_OPTS
-              Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
+              Value: !Sub
+                - "-Xmx${ServerMemory}m -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m"
+                - {
+                    ServerMemory: !GetAtt [ServerMemory, Value]
+                  }
           MountPoints:
             - ContainerPath: /data/teamcity_server/datadir
               SourceVolume: data
@@ -830,6 +835,7 @@ Resources:
     Condition: ShouldLaunchReadonlyNode
     DependsOn:
       - RDSDB
+      - ServerMemory
     Properties:
       PlacementConstraints:
         - Type: memberOf
@@ -867,7 +873,11 @@ Resources:
             - Name: TEAMCITY_SERVER_OPTS
               Value: -Dteamcity.server.nodeSpecificDataPath=/data/teamcity_server_ro/datadir -Dteamcity.server.role=read-only-server
             - Name: TEAMCITY_SERVER_MEM_OPTS
-              Value: -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m
+              Value: !Sub
+                - "-Xmx${ServerMemory}m -XX:MaxPermSize=270m -XX:ReservedCodeCacheSize=350m"
+                - {
+                    ServerMemory: !GetAtt [ServerMemory, Value]
+                  }
           MountPoints:
             - ContainerPath: /data/teamcity_server/datadir
               SourceVolume: data_main
@@ -1152,6 +1162,45 @@ Resources:
       SslPolicy: "ELBSecurityPolicy-2016-08"
       Certificates:
         - CertificateArn: !Ref Certificate
+
+  # Utils
+  ServerMemory:
+    Type: Custom::ServerMemory
+    DependsOn:
+      - ServerMemoryFunction
+    Properties:
+      ServiceToken: !GetAtt ServerMemoryFunction.Arn
+      Region: !Ref "AWS::Region"
+      Input: !Ref ServerContainerMemory
+
+  ServerMemoryFunction:
+    Type: AWS::Lambda::Function
+    DependsOn:
+      - LambdaExecutionRole
+    Properties:
+      Code:
+        ZipFile: !Sub |
+          var response = require('cfn-response');
+          exports.lambda_handler = function(event, context) {
+            var input = parseInt(event.ResourceProperties.Input);
+            var responseData = { Value: input / 2 };
+            response.send(event, context, response.SUCCESS, responseData);
+          }
+      Handler: "index.lambda_handler"
+      Runtime: nodejs6.10
+      Timeout: 30
+      Role: !GetAtt [ LambdaExecutionRole, Arn ]
+
+  LambdaExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: "sts:AssumeRole"
 
 Outputs:
   TeamCityServerUrl:
