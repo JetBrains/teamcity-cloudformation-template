@@ -1071,10 +1071,6 @@ Resources:
         VpcId: !Ref 'VPC'
         SecurityGroupIngress:
           - IpProtocol: tcp
-            FromPort: '8111'
-            ToPort: '8111'
-            SourceSecurityGroupId: !Ref "PublicLoadBalancerSG"
-          - IpProtocol: tcp
             FromPort: '22'
             ToPort: '22'
             CidrIp: 0.0.0.0/0
@@ -1094,10 +1090,6 @@ Resources:
         GroupDescription: ECS node SG
         VpcId: !Ref 'VPC'
         SecurityGroupIngress:
-          - IpProtocol: tcp
-            FromPort: '8111'
-            ToPort: '8111'
-            SourceSecurityGroupId: !Ref "InternalLoadBalancerSG"
           - IpProtocol: tcp
             FromPort: '22'
             ToPort: '22'
