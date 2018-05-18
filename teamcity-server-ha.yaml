@@ -1076,13 +1076,12 @@ Resources:
           - IpProtocol: tcp
             FromPort: '1024'
             ToPort: '65535'
-            CidrIp: 0.0.0.0/0
+            SourceSecurityGroupId: !Ref "PublicLoadBalancerSG"
         SecurityGroupEgress:
           - IpProtocol: -1
             FromPort: '0'
             ToPort: '0'
             CidrIp: 0.0.0.0/0
-
   # RDS
 
   RDSDB:
