@@ -397,19 +397,24 @@ Resources:
           RouteTableId: !Ref PrivateRouteTable2
           SubnetId: !Ref PrivateSubnet2
 
-  # A public facing load balancer, this is used for accepting traffic from the public
-  # internet and directing it to public facing microservices
   PublicLoadBalancerSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Access to the public facing load balancer
       VpcId: !Ref 'VPC'
       SecurityGroupIngress:
-          # Allow access to ALB from anywhere on the internet
-          - CidrIp: 0.0.0.0/0
-            IpProtocol: -1
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
 
-  #TODO: review dependsOn this resource
+  InternalLoadBalancerSG:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Access to the public facing load balancer
+        VpcId: !Ref 'VPC'
+        SecurityGroupIngress:
+            - SourceSecurityGroupId: !Ref "FrontendECSNodeSecurityGroup"
+              IpProtocol: -1
+
   PublicLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
@@ -434,7 +439,7 @@ Resources:
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
       SecurityGroups:
-        - !Ref PublicLoadBalancerSG
+        - !Ref InternalLoadBalancerSG
 
   TCRONodeLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -447,7 +452,7 @@ Resources:
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
       SecurityGroups:
-        - !Ref PublicLoadBalancerSG
+        - !Ref InternalLoadBalancerSG
 
   FrontendTargetGroup:
       Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -640,7 +645,7 @@ Resources:
       KeyName: !Ref 'KeyName'
       InstanceType: 't2.medium'
       SecurityGroups:
-        - !Ref ECSNodeSecurityGroup
+        - !Ref FrontendECSNodeSecurityGroup
       IamInstanceProfile: !Ref ECSNodeInstanceProfile
       UserData:
         Fn::Base64: !Sub |
@@ -683,7 +688,7 @@ Resources:
       KeyName: !Ref 'KeyName'
       InstanceType: !Ref ServerInstanceType
       SecurityGroups:
-        - !Ref ECSNodeSecurityGroup
+        - !Ref BackendECSNodeSecurityGroup
       IamInstanceProfile: !Ref ECSNodeInstanceProfile
       UserData:
         Fn::Base64: !Sub |
@@ -704,7 +709,7 @@ Resources:
       KeyName: !Ref 'KeyName'
       InstanceType: !Ref AgentInstanceType
       SecurityGroups:
-        - !Ref ECSNodeSecurityGroup
+        - !Ref AgentECSNodeSecurityGroup
       IamInstanceProfile: !Ref ECSNodeInstanceProfile
       UserData:
               Fn::Base64: !Sub |
@@ -1057,9 +1062,9 @@ Resources:
         - IpProtocol: tcp
           FromPort: 2049
           ToPort: 2049
-          SourceSecurityGroupId: !Ref "ECSNodeSecurityGroup"
+          SourceSecurityGroupId: !Ref "BackendECSNodeSecurityGroup"
 
-  ECSNodeSecurityGroup:
+  FrontendECSNodeSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
         GroupDescription: ECS node SG
@@ -1068,7 +1073,7 @@ Resources:
           - IpProtocol: tcp
             FromPort: '8111'
             ToPort: '8111'
-            CidrIp: 0.0.0.0/0
+            SourceSecurityGroupId: !Ref "PublicLoadBalancerSG"
           - IpProtocol: tcp
             FromPort: '22'
             ToPort: '22'
@@ -1082,6 +1087,47 @@ Resources:
             FromPort: '0'
             ToPort: '0'
             CidrIp: 0.0.0.0/0
+
+  BackendECSNodeSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: ECS node SG
+        VpcId: !Ref 'VPC'
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '8111'
+            ToPort: '8111'
+            SourceSecurityGroupId: !Ref "InternalLoadBalancerSG"
+          - IpProtocol: tcp
+            FromPort: '22'
+            ToPort: '22'
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: '1024'
+            ToPort: '65535'
+            SourceSecurityGroupId: !Ref "InternalLoadBalancerSG"
+        SecurityGroupEgress:
+          - IpProtocol: -1
+            FromPort: '0'
+            ToPort: '0'
+            CidrIp: 0.0.0.0/0
+
+  AgentECSNodeSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: ECS node SG
+        VpcId: !Ref 'VPC'
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '22'
+            ToPort: '22'
+            CidrIp: 0.0.0.0/0
+        SecurityGroupEgress:
+          - IpProtocol: -1
+            FromPort: '0'
+            ToPort: '0'
+            CidrIp: 0.0.0.0/0
+
   # RDS
 
   RDSDB:
@@ -1109,7 +1155,7 @@ Resources:
       GroupDescription: !Sub TeamCity ${AWS::StackName} Database
       SecurityGroupIngress:
         - IpProtocol: -1
-          SourceSecurityGroupId: !Ref "ECSNodeSecurityGroup"
+          SourceSecurityGroupId: !Ref "BackendECSNodeSecurityGroup"
 
   RDSParamGroup:
     Type: AWS::RDS::DBParameterGroup
