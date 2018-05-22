@@ -361,8 +361,14 @@ Resources:
     DependsOn:
       - FrontendSecurityGroup
     Properties:
-      GroupId: !Ref "FrontendSecurityGroup"
-      SourceSecurityGroupId: !Ref "FrontendSecurityGroup"
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+        - FrontendSecurityGroup
+        - GroupId
+      GroupId:
+        Fn::GetAtt:
+        - FrontendSecurityGroup
+        - GroupId
       IpProtocol: -1
 
   BackendSecurityGroup:
@@ -378,8 +384,14 @@ Resources:
     DependsOn:
       - BackendSecurityGroup
     Properties:
-      GroupId: !Ref "BackendSecurityGroup"
-      SourceSecurityGroupId: !Ref "BackendSecurityGroup"
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+        - BackendSecurityGroup
+        - GroupId
+      GroupId:
+        Fn::GetAtt:
+        - BackendSecurityGroup
+        - GroupId
       IpProtocol: -1
 
   FrontendAccessIngress:
@@ -388,8 +400,14 @@ Resources:
         - FrontendSecurityGroup
         - BackendSecurityGroup
       Properties:
-        GroupId: !Ref "BackendSecurityGroup"
-        SourceSecurityGroupId: !Ref "FrontendSecurityGroup"
+        SourceSecurityGroupId:
+          Fn::GetAtt:
+          - FrontendSecurityGroup
+          - GroupId
+        GroupId:
+          Fn::GetAtt:
+          - BackendSecurityGroup
+          - GroupId
         IpProtocol: -1
 
   PublicLoadBalancer:
@@ -1042,7 +1060,10 @@ Resources:
         - IpProtocol: tcp
           FromPort: 2049
           ToPort: 2049
-          SourceSecurityGroupId: !Ref "BackendSecurityGroup"
+          SourceSecurityGroupId:
+            Fn::GetAtt:
+            - BackendSecurityGroup
+            - GroupId
 
   SshAccessSecurityGroup:
         Type: AWS::EC2::SecurityGroup
@@ -1082,7 +1103,10 @@ Resources:
       GroupDescription: !Sub TeamCity ${AWS::StackName} Database
       SecurityGroupIngress:
         - IpProtocol: -1
-          SourceSecurityGroupId: !Ref "BackendSecurityGroup"
+          SourceSecurityGroupId:
+            Fn::GetAtt:
+            - BackendSecurityGroup
+            - GroupId
 
   RDSParamGroup:
     Type: AWS::RDS::DBParameterGroup
