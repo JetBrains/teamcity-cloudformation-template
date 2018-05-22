@@ -305,28 +305,6 @@ Resources:
               - Key: Name
                 Value: !Sub TeamCity ${AWS::StackName} Public Subnet (AZ2)
 
-  PrivateSubnet1:
-      Type: AWS::EC2::Subnet
-      Properties:
-          VpcId: !Ref VPC
-          AvailabilityZone: !Select [ 0, !GetAZs "" ]
-          CidrBlock: 10.0.2.0/24
-          MapPublicIpOnLaunch: false
-          Tags:
-              - Key: Name
-                Value: !Sub TeamCity ${AWS::StackName} Private Subnet (AZ1)
-
-  PrivateSubnet2:
-      Type: AWS::EC2::Subnet
-      Properties:
-          VpcId: !Ref VPC
-          AvailabilityZone: !Select [ 1, !GetAZs "" ]
-          CidrBlock: 10.0.3.0/24
-          MapPublicIpOnLaunch: false
-          Tags:
-              - Key: Name
-                Value: !Sub TeamCity ${AWS::StackName} Private Subnet (AZ2)
-
   PublicRouteTable:
       Type: AWS::EC2::RouteTable
       Properties:
@@ -355,48 +333,6 @@ Resources:
           RouteTableId: !Ref PublicRouteTable
           SubnetId: !Ref PublicSubnet2
 
-  PrivateRouteTable1:
-      Type: AWS::EC2::RouteTable
-      Properties:
-          VpcId: !Ref VPC
-          Tags:
-              - Key: Name
-                Value: !Sub TeamCity ${AWS::StackName} Private Routes (AZ1)
-
-  DefaultPrivateRoute1:
-      Type: AWS::EC2::Route
-      Properties:
-          RouteTableId: !Ref PrivateRouteTable1
-          DestinationCidrBlock: 0.0.0.0/0
-          GatewayId: !Ref InternetGateway
-
-  PrivateSubnet1RouteTableAssociation:
-      Type: AWS::EC2::SubnetRouteTableAssociation
-      Properties:
-          RouteTableId: !Ref PrivateRouteTable1
-          SubnetId: !Ref PrivateSubnet1
-
-  PrivateRouteTable2:
-      Type: AWS::EC2::RouteTable
-      Properties:
-          VpcId: !Ref VPC
-          Tags:
-              - Key: Name
-                Value: !Sub TeamCity ${AWS::StackName} Private Routes (AZ2)
-
-  DefaultPrivateRoute2:
-      Type: AWS::EC2::Route
-      Properties:
-          RouteTableId: !Ref PrivateRouteTable2
-          DestinationCidrBlock: 0.0.0.0/0
-          GatewayId: !Ref InternetGateway
-
-  PrivateSubnet2RouteTableAssociation:
-      Type: AWS::EC2::SubnetRouteTableAssociation
-      Properties:
-          RouteTableId: !Ref PrivateRouteTable2
-          SubnetId: !Ref PrivateSubnet2
-
   PublicAccessSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -404,7 +340,13 @@ Resources:
       VpcId: !Ref 'VPC'
       SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
-          IpProtocol: -1
+          IpProtocol: "tcp"
+          FromPort: "443"
+          ToPort: "443"
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: "tcp"
+          FromPort: "80"
+          ToPort: "80"
 
   FrontendSecurityGroup:
     Type: AWS::EC2::SecurityGroup
