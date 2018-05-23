@@ -350,7 +350,7 @@ Resources:
         - !Ref PublicAccessSG
         - !Ref TCServerAccessSecurityGroup
 
-  MainServerNodeTargetGroup:
+  TCServerNodeTargetGroup:
       Type: AWS::ElasticLoadBalancingV2::TargetGroup
       Properties:
         HealthCheckIntervalSeconds: 6
@@ -374,7 +374,7 @@ Resources:
       - PublicLoadBalancer
     Properties:
       DefaultActions:
-        - TargetGroupArn: !Ref MainServerNodeTargetGroup
+        - TargetGroupArn: !Ref TCServerNodeTargetGroup
           Type: 'forward'
       LoadBalancerArn: !Ref PublicLoadBalancer
       Port: 80
@@ -385,7 +385,7 @@ Resources:
         Properties:
           ClusterName: !Ref AWS::StackName
 
-  ServerAutoScalingGroup:
+  TCServerAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier:
@@ -504,7 +504,7 @@ Resources:
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
 
-  MainServerNodeTaskDefinition:
+  TCServerNodeTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
       - RDSDB
@@ -567,7 +567,7 @@ Resources:
       Condition: ShouldLaunchAgents
       DependsOn:
         - PublicLoadBalancer
-        - MainServerNodeService
+        - TCServerNodeService
       Properties:
         PlacementConstraints:
           - Type: memberOf
@@ -588,10 +588,10 @@ Resources:
                 awslogs-region: !Ref AWS::Region
                 awslogs-stream-prefix: 'aws/ecs/teamcity-agent'
 
-  MainServerNodeService:
+  TCServerNodeService:
     Type: AWS::ECS::Service
     DependsOn:
-      - ServerAutoScalingGroup
+      - TCServerAutoScalingGroup
       - PublicLoadBalancer
     Properties:
       ServiceName: !Join ['_', [!Ref 'AWS::StackName', 'TeamCityServer', 'MainNode']]
@@ -604,7 +604,7 @@ Resources:
       DesiredCount: 1
       HealthCheckGracePeriodSeconds: 600
       TaskDefinition:
-        Ref: "MainServerNodeTaskDefinition"
+        Ref: "TCServerNodeTaskDefinition"
       PlacementStrategies:
         - Type: "spread"
           Field: "attribute:ecs.availability-zone"
@@ -612,7 +612,7 @@ Resources:
         - ContainerName: 'teamcity-server'
           ContainerPort: 8111
           TargetGroupArn:
-            Ref: MainServerNodeTargetGroup
+            Ref: TCServerNodeTargetGroup
 
   AgentService:
     Type: AWS::ECS::Service
@@ -723,7 +723,7 @@ Resources:
       - Certificate
     Properties:
       DefaultActions:
-        - TargetGroupArn: !Ref MainServerNodeTargetGroup
+        - TargetGroupArn: !Ref TCServerNodeTargetGroup
           Type: 'forward'
       LoadBalancerArn: !Ref PublicLoadBalancer
       Port: 443
