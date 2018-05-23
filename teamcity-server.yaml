@@ -362,7 +362,7 @@ Resources:
           - Key: deregistration_delay.timeout_seconds
             Value: '10'
         Matcher:
-          HttpCode: '200'
+          HttpCode: "200,302"
         Port: 8111
         Protocol: HTTP
         TargetType: instance

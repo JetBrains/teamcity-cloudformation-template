@@ -450,7 +450,7 @@ Resources:
           - Key: deregistration_delay.timeout_seconds
             Value: '10'
         Matcher:
-          HttpCode: '200'
+          HttpCode: "200,302"
         Port: 80
         Protocol: HTTP
         TargetType: instance
@@ -468,7 +468,7 @@ Resources:
           - Key: deregistration_delay.timeout_seconds
             Value: '10'
         Matcher:
-          HttpCode: '200'
+          HttpCode: "200,302"
         Port: 8111
         Protocol: HTTP
         TargetType: instance
@@ -486,7 +486,7 @@ Resources:
         - Key: deregistration_delay.timeout_seconds
           Value: '10'
       Matcher:
-        HttpCode: '200'
+        HttpCode: "200,302"
       Port: 8111
       Protocol: HTTP
       TargetType: instance
@@ -659,7 +659,6 @@ Resources:
               default_backend tc
           backend tc
               option httpchk GET /login.html
-          	  http-check expect status 200
           	  default-server inter 2s fall 2 rise 2
               server tc_main_node \$TC_MAIN_NODE_URL:80 check resolvers dns
               server tc_ro_node \$TC_RO_NODE_URL:80 backup check resolvers dns
