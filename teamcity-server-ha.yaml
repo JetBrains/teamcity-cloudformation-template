@@ -656,12 +656,35 @@ Resources:
               timeout server 50000ms
           frontend http-in
               bind *:80
-              default_backend tc
-          backend tc
+              acl is_ha_request_url_param urlp(tcnodetype) ha
+              acl is_ha_request_cookie hdr_sub(cookie) TCNODETYPE=ha
+              acl is_ro_node_request_url_param urlp(tcnodetype) ro
+              acl is_ro_node_request_cookie hdr_sub(cookie) TCNODETYPE=ro
+              acl is_main_node_request_url_param urlp(tcnodetype) main
+              acl is_main_node_request_cookie hdr_sub(cookie) TCNODETYPE=main
+              use_backend tc-ha if is_ha_request_url_param
+              use_backend tc-main if is_main_node_request_url_param
+              use_backend tc-ro if is_ro_node_request_url_param
+              use_backend tc-ha if is_ha_request_cookie
+              use_backend tc-main if is_main_node_request_cookie
+              use_backend tc-ro if is_ro_node_request_cookie
+              default_backend tc-ha
+          backend tc-ha
               option httpchk GET /login.html
+              cookie TCNODETYPE insert
           	  default-server inter 2s fall 2 rise 2
-              server tc_main_node \$TC_MAIN_NODE_URL:80 check resolvers dns
-              server tc_ro_node \$TC_RO_NODE_URL:80 backup check resolvers dns
+              server tc_main_node \$TC_MAIN_NODE_URL:80 check resolvers dns cookie ha
+              server tc_ro_node \$TC_RO_NODE_URL:80 backup check resolvers dns cookie ha
+          backend tc-main
+              option httpchk GET /login.html
+              cookie TCNODETYPE insert
+              default-server inter 2s fall 2 rise 2
+              server tc_main_node \$TC_MAIN_NODE_URL:80 check resolvers dns cookie main
+          backend tc-ro
+              option httpchk GET /login.html
+              cookie TCNODETYPE insert
+              default-server inter 2s fall 2 rise 2
+              server tc_ro_node \$TC_RO_NODE_URL:80 check resolvers dns cookie ro
           EOF
 
   BackendLaunchConfiguration:
@@ -1183,7 +1206,14 @@ Resources:
             Action: "sts:AssumeRole"
 
 Outputs:
-  TeamCityServerUrl:
-    Description: TeamCity Server URL
-    Value: !Join ["", [ "http://", !GetAtt [PublicLoadBalancer, DNSName], "/" ]]
+  HATeamCityServerUrl:
+    Description: High Available TeamCity Server URL
+    Value: !Join ["", [ "http://", !GetAtt [PublicLoadBalancer, DNSName], "/overview.html?tcnodetype=ha" ]]
 
+  MainNodeUrl:
+    Description: TeamCity Server Main Node URL
+    Value: !Join ["", [ "http://", !GetAtt [PublicLoadBalancer, DNSName], "/overview.html?tcnodetype=main" ]]
+
+  ReadonlyNodeUrl:
+    Description: TeamCity Server Readonly Node URL
+    Value: !Join ["", [ "http://", !GetAtt [PublicLoadBalancer, DNSName], "/overview.html?tcnodetype=ro" ]]
