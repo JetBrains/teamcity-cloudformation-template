@@ -336,6 +336,15 @@ Resources:
           FromPort: "80"
           ToPort: "80"
 
+  AllAccessSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allows incoming traffic of any type. !! Use for troubleshooting only !!
+      VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+
   FrontendSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     DependsOn:
@@ -442,7 +451,7 @@ Resources:
       Type: AWS::ElasticLoadBalancingV2::TargetGroup
       Properties:
         HealthCheckIntervalSeconds: 6
-        HealthCheckPath: /login.html #TODO review
+        HealthCheckPath: /haproxy_status
         HealthCheckProtocol: HTTP
         HealthCheckTimeoutSeconds: 5
         HealthyThresholdCount: 2
@@ -450,7 +459,7 @@ Resources:
           - Key: deregistration_delay.timeout_seconds
             Value: '10'
         Matcher:
-          HttpCode: "200,302"
+          HttpCode: "200"
         Port: 80
         Protocol: HTTP
         TargetType: instance
@@ -656,6 +665,7 @@ Resources:
               timeout server 50000ms
           frontend http-in
               bind *:80
+              monitor-uri /haproxy_status
               acl is_ha_request_url_param urlp(tcnodetype) ha
               acl is_ha_request_cookie hdr_sub(cookie) TCNODETYPE=ha
               acl is_ro_node_request_url_param urlp(tcnodetype) ro

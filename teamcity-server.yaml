@@ -336,6 +336,15 @@ Resources:
           FromPort: "80"
           ToPort: "80"
 
+  AllAccessSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allows incoming traffic of any type. !! Use for troubleshooting only !!
+      VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: -1
+
   PublicLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
