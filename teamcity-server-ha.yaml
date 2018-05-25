@@ -15,6 +15,12 @@ Parameters:
         Type: AWS::EC2::KeyPair::KeyName
         AllowedPattern: ".+"
 
+    InternetFacingStack:
+      Description: Make TeamCity server accessible from internet.
+      Type: String
+      Default: false
+      AllowedValues: [true, false]
+
     ServerContainerCpu:
         Type: Number
         Default: 1024
@@ -159,6 +165,7 @@ Metadata:
               default: ""
             Parameters:
               - TeamCityVersion
+              - InternetFacingStack
               - KeyName
           - Label:
               default: "TeamCity Server"
@@ -184,6 +191,8 @@ Metadata:
             default: "EC2 Instance Type"
           AgentInstanceType:
             default: "EC2 Instance Type"
+          InternetFacingStack:
+            default: "Internet-Facing Stack"
           KeyName:
             default: "EC2 KeyPair"
           TeamCityVersion:
@@ -241,6 +250,9 @@ Mappings:
 
 Conditions:
 
+  IsInternetFacingStack:
+    !Equals [true, !Ref InternetFacingStack]
+
   ShouldLaunchAgents:
     !Not [!Equals [0, !Ref AgentNumber]]
 
@@ -270,6 +282,40 @@ Resources:
       Properties:
           InternetGatewayId: !Ref InternetGateway
           VpcId: !Ref VPC
+
+  NatGatewayEIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      AllocationId:
+        Fn::GetAtt:
+        - NatGatewayEIP1
+        - AllocationId
+      Tags:
+        - Key: Name
+          Value: !Sub TeamCity-${AWS::StackName}
+
+  NatGatewayEIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      AllocationId:
+        Fn::GetAtt:
+        - NatGatewayEIP2
+        - AllocationId
+      Tags:
+        - Key: Name
+          Value: !Sub TeamCity-${AWS::StackName}
 
   PublicSubnet1:
       Type: AWS::EC2::Subnet
@@ -320,6 +366,72 @@ Resources:
       Properties:
           RouteTableId: !Ref PublicRouteTable
           SubnetId: !Ref PublicSubnet2
+
+  PrivateSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+          VpcId: !Ref VPC
+          AvailabilityZone: !Select [ 0, !GetAZs "" ]
+          CidrBlock: 10.0.2.0/24
+          MapPublicIpOnLaunch: false
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity ${AWS::StackName} Private Subnet (AZ1)
+
+  PrivateSubnet2:
+      Type: AWS::EC2::Subnet
+      Properties:
+          VpcId: !Ref VPC
+          AvailabilityZone: !Select [ 1, !GetAZs "" ]
+          CidrBlock: 10.0.3.0/24
+          MapPublicIpOnLaunch: false
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity ${AWS::StackName} Private Subnet (AZ2)
+
+  PrivateRouteTable1:
+      Type: AWS::EC2::RouteTable
+      Properties:
+          VpcId: !Ref VPC
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity ${AWS::StackName} Private Routes (AZ1)
+
+  PrivateSubnet1RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+          RouteTableId: !Ref PrivateRouteTable1
+          SubnetId: !Ref PrivateSubnet1
+
+  PrivateRouteTable2:
+      Type: AWS::EC2::RouteTable
+      Properties:
+          VpcId: !Ref VPC
+          Tags:
+              - Key: Name
+                Value: !Sub TeamCity ${AWS::StackName} Private Routes (AZ2)
+
+  PrivateSubnet2RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+          RouteTableId: !Ref PrivateRouteTable2
+          SubnetId: !Ref PrivateSubnet2
+
+  NatGateway1Route:
+    Type: AWS::EC2::Route
+    DependsOn: NatGateway1
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+
+  NatGateway2Route:
+    Type: AWS::EC2::Route
+    DependsOn: NatGateway2
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
 
   PublicAccessSG:
     Type: AWS::EC2::SecurityGroup
@@ -410,7 +522,7 @@ Resources:
   PublicLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
-      Scheme: internet-facing
+      Scheme: !If [IsInternetFacingStack, 'internet-facing', 'internal']
       LoadBalancerAttributes:
       - Key: idle_timeout.timeout_seconds
         Value: '30'
@@ -429,8 +541,8 @@ Resources:
       - Key: idle_timeout.timeout_seconds
         Value: '30'
       Subnets:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
       SecurityGroups:
         - !Ref BackendSecurityGroup
 
@@ -442,8 +554,8 @@ Resources:
       - Key: idle_timeout.timeout_seconds
         Value: '30'
       Subnets:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
       SecurityGroups:
         - !Ref BackendSecurityGroup
 
@@ -585,8 +697,8 @@ Resources:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
       VPCZoneIdentifier:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
       LaunchConfigurationName: !Ref "FrontendLaunchConfiguration"
       MinSize: 1
       MaxSize: 3
@@ -603,8 +715,8 @@ Resources:
       - EfsMountTarget2
     Properties:
       VPCZoneIdentifier:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
       LaunchConfigurationName: !Ref "BackendLaunchConfiguration"
       MinSize: 2
       MaxSize: 2
@@ -619,8 +731,8 @@ Resources:
     Condition: ShouldLaunchAgents
     Properties:
       VPCZoneIdentifier:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
       LaunchConfigurationName: !Ref "AgentLaunchConfiguration"
       MinSize: !Ref AgentNumber
       MaxSize: !Ref AgentNumber
@@ -1054,7 +1166,7 @@ Resources:
       FileSystemId:
         Ref: FileSystem
       SubnetId:
-        Ref: PublicSubnet1
+        Ref: PrivateSubnet1
       SecurityGroups:
       - Ref: "EFSMountingTargetsSecurityGroup"
 
@@ -1064,7 +1176,7 @@ Resources:
        FileSystemId:
          Ref: FileSystem
        SubnetId:
-         Ref: PublicSubnet2
+         Ref: PrivateSubnet2
        SecurityGroups:
        - Ref: "EFSMountingTargetsSecurityGroup"
 
@@ -1143,8 +1255,8 @@ Resources:
     Properties:
       DBSubnetGroupDescription: !Sub TeamCity ${AWS::StackName} DB
       SubnetIds:
-        - !Ref 'PublicSubnet1'
-        - !Ref 'PublicSubnet2'
+        - !Ref 'PrivateSubnet1'
+        - !Ref 'PrivateSubnet2'
 
   #  Logging
   ECSLogGroup:
