@@ -167,13 +167,13 @@ Metadata:
               - TeamCityVersion
               - InternetFacingStack
               - KeyName
+              - CertificateDomainName
           - Label:
               default: "TeamCity Server"
             Parameters:
               - ServerInstanceType
               - ServerContainerCpu
               - ServerContainerMemory
-              - CertificateDomainName
           - Label:
               default: "Database"
             Parameters:
@@ -194,13 +194,13 @@ Metadata:
           InternetFacingStack:
             default: "Internet-Facing Stack"
           KeyName:
-            default: "EC2 KeyPair"
+            default: "EC2 KeyPair (required)"
           TeamCityVersion:
             default: "TeamCity Version"
           DBInstanceType:
             default: "RDS Database Instance Type"
           DBPassword:
-            default: "TeamCity Database Password"
+            default: "TeamCity Database Password (required)"
           ServerContainerMemory:
             default: "Container Memory"
           AgentContainerMemory:
@@ -798,12 +798,10 @@ Resources:
               server tc_main_node \$TC_MAIN_NODE_URL:80 check resolvers dns cookie ha
               server tc_ro_node \$TC_RO_NODE_URL:80 backup check resolvers dns cookie ha
           backend tc-main
-              option httpchk GET /login.html
               cookie TCNODETYPE insert
               default-server inter 2s fall 2 rise 2
               server tc_main_node \$TC_MAIN_NODE_URL:80 check resolvers dns cookie main
           backend tc-ro
-              option httpchk GET /login.html
               cookie TCNODETYPE insert
               default-server inter 2s fall 2 rise 2
               server tc_ro_node \$TC_RO_NODE_URL:80 check resolvers dns cookie ro

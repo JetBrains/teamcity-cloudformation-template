@@ -167,13 +167,13 @@ Metadata:
               - TeamCityVersion
               - InternetFacingStack
               - KeyName
+              - CertificateDomainName
           - Label:
               default: "TeamCity Server"
             Parameters:
               - ServerInstanceType
               - ServerContainerCpu
               - ServerContainerMemory
-              - CertificateDomainName
           - Label:
               default: "Database"
             Parameters:
@@ -194,13 +194,13 @@ Metadata:
           AgentInstanceType:
             default: "EC2 Instance Type"
           KeyName:
-            default: "EC2 KeyPair"
+            default: "EC2 KeyPair (required)"
           TeamCityVersion:
             default: "TeamCity Version"
           DBInstanceType:
             default: "RDS Database Instance Type"
           DBPassword:
-            default: "TeamCity Database Password"
+            default: "TeamCity Database Password (required)"
           ServerContainerMemory:
             default: "Container Memory"
           AgentContainerMemory:
