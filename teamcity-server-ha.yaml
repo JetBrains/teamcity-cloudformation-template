@@ -288,30 +288,13 @@ Resources:
     Properties:
       Domain: vpc
 
-  NatGateway1:
+  NatGateway:
     Type: AWS::EC2::NatGateway
     Properties:
       SubnetId: !Ref PublicSubnet1
       AllocationId:
         Fn::GetAtt:
         - NatGatewayEIP1
-        - AllocationId
-      Tags:
-        - Key: Name
-          Value: !Sub TeamCity-${AWS::StackName}
-
-  NatGatewayEIP2:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-
-  NatGateway2:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      SubnetId: !Ref PublicSubnet2
-      AllocationId:
-        Fn::GetAtt:
-        - NatGatewayEIP2
         - AllocationId
       Tags:
         - Key: Name
@@ -417,21 +400,21 @@ Resources:
           RouteTableId: !Ref PrivateRouteTable2
           SubnetId: !Ref PrivateSubnet2
 
-  NatGateway1Route:
+  NatGatewayRoute1:
     Type: AWS::EC2::Route
-    DependsOn: NatGateway1
+    DependsOn: NatGateway
     Properties:
       RouteTableId: !Ref PrivateRouteTable1
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway1
+      NatGatewayId: !Ref NatGateway
 
-  NatGateway2Route:
+  NatGatewayRoute2:
     Type: AWS::EC2::Route
-    DependsOn: NatGateway2
+    DependsOn: NatGateway
     Properties:
       RouteTableId: !Ref PrivateRouteTable2
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway2
+      NatGatewayId: !Ref NatGateway
 
   PublicAccessSG:
     Type: AWS::EC2::SecurityGroup
