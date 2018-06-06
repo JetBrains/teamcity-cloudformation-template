@@ -202,13 +202,13 @@ Metadata:
           DBPassword:
             default: "TeamCity Database Password (required)"
           ServerContainerMemory:
-            default: "Container Memory"
+            default: "Container Memory (MiB)"
           AgentContainerMemory:
-            default: "Container Memory"
+            default: "Container Memory (MiB)"
           ServerContainerCpu:
-            default: "Container CPU"
+            default: "Container CPU (unit)"
           AgentContainerCpu:
-            default: "Container CPU"
+            default: "Container CPU (unit)"
           AgentNumber:
             default: "Agents Number"
           CertificateDomainName:
