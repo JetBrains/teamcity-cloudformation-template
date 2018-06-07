@@ -1432,4 +1432,4 @@ Outputs:
 
   SSHBastionHostIP:
     Description: SSH Bastion Host IP
-    Value: !If [IsInternetFacingStack, !Ref SshBastionHostPublicEIP, 'not provided']
+    Value: !If [EnableExternalSshAccess, !Ref SshBastionHostPublicEIP, 'not provided']
