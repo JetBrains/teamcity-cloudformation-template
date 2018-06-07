@@ -158,6 +158,12 @@ Parameters:
       Description: Fully Qualified Domain Name (FQDN) of the certificate. Email validation will start. Leave empty to not setup SSL access to the server.
       AllowedPattern: ^$|^(\*\.)?(((?!-)[A-Za-z0-9-]{0,62}[A-Za-z0-9])\.)+((?!-)[A-Za-z0-9-]{1,62}[A-Za-z0-9])$
 
+    SshAccessSourceIPRange:
+      Type: String
+      Description: An IPv4 CIDR range to allow external SSH access from. Leave empty to deny SSH access.
+      AllowedPattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
+      ConstraintDescription: Should be valid CIDR
+
 Metadata:
     AWS::CloudFormation::Interface:
         ParameterGroups:
@@ -166,8 +172,9 @@ Metadata:
             Parameters:
               - TeamCityVersion
               - InternetFacingStack
-              - KeyName
               - CertificateDomainName
+              - KeyName
+              - SshAccessSourceIPRange
           - Label:
               default: "TeamCity Server"
             Parameters:
@@ -213,6 +220,8 @@ Metadata:
             default: "Agents Number"
           CertificateDomainName:
             default: "SSL Certificate Domain"
+          SshAccessSourceIPRange:
+            default: "Allow SSH From"
 
 Mappings:
 
@@ -258,6 +267,9 @@ Conditions:
 
   ShouldRequestCertificate:
     !Not [!Equals ['', !Ref CertificateDomainName]]
+
+  EnableExternalSshAccess:
+    !Not [!Equals ['', !Ref SshAccessSourceIPRange]]
 
 Resources:
 
@@ -874,6 +886,84 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: "sts:AssumeRole"
+
+  #  SSH bastion host
+
+  SshBastionHostPublicEIP:
+    Type: AWS::EC2::EIP
+    Condition: EnableExternalSshAccess
+    Properties:
+      Domain: vpc
+
+  SshBastionAccessSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: EnableExternalSshAccess
+    Properties:
+      GroupDescription: Access to SSH bastion host
+      VpcId: !Ref 'VPC'
+      SecurityGroupIngress:
+        - CidrIp: !Ref SshAccessSourceIPRange
+          IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+
+  SshBastionHostInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref SshBastionHostInstanceRole
+
+  SshBastionHostInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+
+  SshBastionHostLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    DependsOn: SshBastionHostPublicEIP
+    Properties:
+      # Ubuntu Server 16.04 LTS (HVM)
+      ImageId: ami-58d7e821
+      KeyName: !Ref 'KeyName'
+      InstanceType: t2.micro
+      SecurityGroups:
+        - !Ref SshAccessSecurityGroup
+        - !Ref SshBastionAccessSecurityGroup
+      IamInstanceProfile: !Ref SshBastionHostInstanceProfile
+      UserData:
+        Fn::Base64: !Sub
+           - "#!/bin/sh
+                         INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+                         aws ec2 disassociate-address –association-id ${ALLOCATION_ID}
+                         aws ec2 associate-address –instance-id $INSTANCE_ID –allocation-id ${ALLOCATION_ID} –allow-reassociation"
+           - {
+                ALLOCATION_ID: !GetAtt [SshBastionHostPublicEIP, AllocationId]
+             }
+
+  SshBastionHostAutoscalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      LaunchConfigurationName: !Ref "SshBastionHostLaunchConfiguration"
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: !If [EnableExternalSshAccess, 1, 0]
+      Tags:
+        - Key: teamcity.node-responsibility
+          Value: ssh-bastion-host
+          PropagateAtLaunch: 'true'
+
 
 Outputs:
   TeamCityServerUrl:
