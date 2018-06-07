@@ -161,7 +161,7 @@ Parameters:
     SshAccessSourceIPRange:
       Type: String
       Description: An IPv4 CIDR range to allow external SSH access from. Leave empty to deny SSH access.
-      AllowedPattern: ^([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
+      AllowedPattern: ^$|([0-9]{1,3}\.){3}[0-9]{1,3}(\/([0-9]|[1-2][0-9]|3[0-2]))?$
       ConstraintDescription: Should be valid CIDR
 
 Metadata:
@@ -909,6 +909,7 @@ Resources:
 
   SshBastionHostInstanceProfile:
     Type: AWS::IAM::InstanceProfile
+    Condition: EnableExternalSshAccess
     Properties:
       Path: "/"
       Roles:
@@ -916,6 +917,7 @@ Resources:
 
   SshBastionHostInstanceRole:
     Type: AWS::IAM::Role
+    Condition: EnableExternalSshAccess
     Properties:
       AssumeRolePolicyDocument:
         Statement:
@@ -927,12 +929,31 @@ Resources:
               - "sts:AssumeRole"
       Path: "/"
 
+  SshBastionHostInstanceRolePolicies:
+      Type: "AWS::IAM::Policy"
+      Condition: EnableExternalSshAccess
+      Properties:
+        PolicyName: "root"
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Action:
+                - "ec2:ReleaseAddress"
+                - "ec2:DisassociateAddress"
+                - "ec2:DescribeAddresses"
+                - "ec2:AssociateAddress"
+              Resource: "*"
+        Roles:
+          - Ref: "SshBastionHostInstanceRole"
+
   SshBastionHostLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
+    Condition: EnableExternalSshAccess
     DependsOn: SshBastionHostPublicEIP
     Properties:
-      # Ubuntu Server 16.04 LTS (HVM)
-      ImageId: ami-58d7e821
+      # Amazon Linux AMI 2018.03.0 (HVM)
+      ImageId: ami-ca0135b3
       KeyName: !Ref 'KeyName'
       InstanceType: t2.micro
       SecurityGroups:
@@ -940,17 +961,16 @@ Resources:
         - !Ref SshBastionAccessSecurityGroup
       IamInstanceProfile: !Ref SshBastionHostInstanceProfile
       UserData:
-        Fn::Base64: !Sub
-           - "#!/bin/sh
-                         INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-                         aws ec2 disassociate-address –association-id ${ALLOCATION_ID}
-                         aws ec2 associate-address –instance-id $INSTANCE_ID –allocation-id ${ALLOCATION_ID} –allow-reassociation"
-           - {
-                ALLOCATION_ID: !GetAtt [SshBastionHostPublicEIP, AllocationId]
-             }
+        Fn::Base64: !Sub |
+           #!/bin/bash
+           INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+           export AWS_DEFAULT_REGION=${AWS::Region}
+           aws ec2 disassociate-address --association-id ${SshBastionHostPublicEIP.AllocationId}
+           aws ec2 associate-address --instance-id $INSTANCE_ID --allocation-id ${SshBastionHostPublicEIP.AllocationId} --allow-reassociation
 
   SshBastionHostAutoscalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
+    Condition: EnableExternalSshAccess
     Properties:
       VPCZoneIdentifier:
         - !Ref PublicSubnet1
@@ -969,4 +989,8 @@ Outputs:
   TeamCityServerUrl:
     Description: TeamCity Server URL
     Value: !Join ["", [ "http://", !GetAtt [PublicLoadBalancer, DNSName], "/" ]]
+
+  SSHBastionHostIP:
+    Description: SSH Bastion Host IP
+    Value: !If [IsInternetFacingStack, !Ref SshBastionHostPublicEIP, 'not provided']
 
