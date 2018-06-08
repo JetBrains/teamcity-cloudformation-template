@@ -758,7 +758,7 @@ Resources:
           global
               daemon
               log 127.0.0.1 local0 info
-              maxconn 256
+              maxconn 10000
           resolvers dns
               nameserver awsdns 10.0.0.2:53
               resolve_retries       3
@@ -767,9 +767,9 @@ Resources:
           defaults
               log global
               mode http
-              timeout connect 5000ms
-              timeout client 50000ms
-              timeout server 50000ms
+              timeout connect 240s
+              timeout server 1200s
+              timeout client 60s
           frontend http-in
               bind *:80
               monitor-uri /haproxy_status
