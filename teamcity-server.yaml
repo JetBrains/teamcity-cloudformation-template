@@ -257,6 +257,38 @@ Mappings:
         eu-west-3:
             AMI: ami-250eb858
 
+  AWSRegionToAMIBastion:
+        ap-northeast-1:
+            AMZNLINUXHVM: ami-92df37ed
+        ap-northeast-2:
+            AMZNLINUXHVM: ami-c10fa6af
+        ap-south-1:
+            AMZNLINUXHVM: ami-76d6f519
+        ap-southeast-1:
+           AMZNLINUXHVM: ami-de90a5a2
+        ap-southeast-2:
+           AMZNLINUXHVM: ami-423bec20
+        ca-central-1:
+            AMZNLINUXHVM: ami-338a0a57
+        eu-central-1:
+            AMZNLINUXHVM: ami-9a91b371
+        eu-west-1:
+            AMZNLINUXHVM: ami-ca0135b3
+        eu-west-2:
+           AMZNLINUXHVM: ami-a36f8dc4
+        eu-west-3:
+           AMZNLINUXHVM: ami-969c2deb
+        sa-east-1:
+            AMZNLINUXHVM: ami-3885d854
+        us-east-1:
+            AMZNLINUXHVM: ami-14c5486b
+        us-east-2:
+            AMZNLINUXHVM: ami-922914f7
+        us-west-1:
+            AMZNLINUXHVM: ami-25110f45
+        us-west-2:
+            AMZNLINUXHVM: ami-e251209a
+
 Conditions:
 
   IsInternetFacingStack:
@@ -953,7 +985,7 @@ Resources:
     DependsOn: SshBastionHostPublicEIP
     Properties:
       # Amazon Linux AMI 2018.03.0 (HVM)
-      ImageId: ami-ca0135b3
+      ImageId: !FindInMap [ AWSRegionToAMIBastion, !Ref 'AWS::Region' , "AMZNLINUXHVM" ]
       KeyName: !Ref 'KeyName'
       InstanceType: t2.micro
       SecurityGroups:
