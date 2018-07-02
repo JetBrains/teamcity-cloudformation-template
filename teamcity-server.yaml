@@ -721,7 +721,7 @@ Resources:
           - Type: memberOf
             Expression: attribute:teamcity.node-responsibility == buildAgent
         ContainerDefinitions:
-          - Name: 'teamcity-agenr'
+          - Name: 'teamcity-agent'
             Image: !Join [':', ['jetbrains/teamcity-agent', !Ref 'TeamCityVersion']]
             Cpu: !Ref AgentContainerCpu
             Memory: !Ref AgentContainerMemory
