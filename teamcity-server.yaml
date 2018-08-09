@@ -1020,7 +1020,7 @@ Resources:
 Outputs:
   TeamCityServerUrl:
     Description: TeamCity Server URL
-    Value: !Join ["", [ "http://", !GetAtt [PublicLoadBalancer, DNSName], "/" ]]
+    Value: !Join ["", [ !If [ShouldRequestCertificate, "https://", "http://" ] , !GetAtt [PublicLoadBalancer, DNSName], "/" ]]
 
   SSHBastionHostIP:
     Description: SSH Bastion Host IP

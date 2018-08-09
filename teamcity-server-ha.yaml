@@ -1452,15 +1452,15 @@ Resources:
 Outputs:
   HATeamCityServerUrl:
     Description: High Available TeamCity Server URL
-    Value: !Join ["", [ "http://", !GetAtt [PublicLoadBalancer, DNSName], "/overview.html?tcnodetype=ha" ]]
+    Value: !Join ["", [ !If [ShouldRequestCertificate, "https://", "http://" ], !GetAtt [PublicLoadBalancer, DNSName], "/overview.html?tcnodetype=ha" ]]
 
   MainNodeUrl:
     Description: TeamCity Server Main Node URL
-    Value: !Join ["", [ "http://", !GetAtt [PublicLoadBalancer, DNSName], "/overview.html?tcnodetype=main" ]]
+    Value: !Join ["", [ !If [ShouldRequestCertificate, "https://", "http://" ], !GetAtt [PublicLoadBalancer, DNSName], "/overview.html?tcnodetype=main" ]]
 
   ReadonlyNodeUrl:
     Description: TeamCity Server Readonly Node URL
-    Value: !Join ["", [ "http://", !GetAtt [PublicLoadBalancer, DNSName], "/overview.html?tcnodetype=ro" ]]
+    Value: !Join ["", [ !If [ShouldRequestCertificate, "https://", "http://" ], !GetAtt [PublicLoadBalancer, DNSName], "/overview.html?tcnodetype=ro" ]]
 
   SSHBastionHostIP:
     Description: SSH Bastion Host IP
