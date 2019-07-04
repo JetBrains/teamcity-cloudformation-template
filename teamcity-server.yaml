@@ -406,7 +406,6 @@ Resources:
 
   NatGatewayRoute1:
     Type: AWS::EC2::Route
-    DependsOn: NatGateway
     Properties:
       RouteTableId: !Ref PrivateRouteTable1
       DestinationCidrBlock: 0.0.0.0/0
@@ -414,7 +413,6 @@ Resources:
 
   NatGatewayRoute2:
     Type: AWS::EC2::Route
-    DependsOn: NatGateway
     Properties:
       RouteTableId: !Ref PrivateRouteTable2
       DestinationCidrBlock: 0.0.0.0/0
@@ -468,12 +466,12 @@ Resources:
       SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
           IpProtocol: "tcp"
-          FromPort: "443"
-          ToPort: "443"
+          FromPort: 443
+          ToPort: 443
         - CidrIp: 0.0.0.0/0
           IpProtocol: "tcp"
-          FromPort: "80"
-          ToPort: "80"
+          FromPort: 80
+          ToPort: 80
 
   AllAccessSG:
     Type: AWS::EC2::SecurityGroup
@@ -482,7 +480,7 @@ Resources:
       VpcId: !Ref 'VPC'
       SecurityGroupIngress:
         - CidrIp: 0.0.0.0/0
-          IpProtocol: -1
+          IpProtocol: "-1"
 
   PublicLoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -518,8 +516,6 @@ Resources:
 
   PublicLoadBalancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn:
-      - PublicLoadBalancer
     Properties:
       DefaultActions:
         - TargetGroupArn: !Ref TCServerNodeTargetGroup
@@ -540,13 +536,13 @@ Resources:
         - !Ref PrivateSubnet1
         - !Ref PrivateSubnet2
       LaunchConfigurationName: !Ref "TCServerLaunchConfiguration"
-      MinSize: 1
-      MaxSize: 1
-      DesiredCapacity: 1
+      MinSize: "1"
+      MaxSize: "1"
+      DesiredCapacity: "1"
       Tags:
         - Key: teamcity.node-responsibility
           Value: server
-          PropagateAtLaunch: 'true'
+          PropagateAtLaunch: true
 
   AgentAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -562,7 +558,7 @@ Resources:
       Tags:
         - Key: teamcity.node-responsibility
           Value: buildAgent
-          PropagateAtLaunch: 'true'
+          PropagateAtLaunch: true
 
   TCServerAccessSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -573,7 +569,7 @@ Resources:
   TCServerSecurityGroupIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      IpProtocol: -1
+      IpProtocol: "-1"
       GroupId:
         Fn::GetAtt:
           - TCServerAccessSecurityGroup
@@ -654,9 +650,6 @@ Resources:
 
   TCServerNodeTaskDefinition:
     Type: AWS::ECS::TaskDefinition
-    DependsOn:
-      - RDSDB
-      - ServerMemory
     Properties:
       PlacementConstraints:
         - Type: memberOf
@@ -684,8 +677,7 @@ Resources:
               - "if [ ! -f /data/teamcity_server/datadir/lib/jdbc ]; then mkdir -p /data/teamcity_server/datadir/lib/jdbc; curl -o /data/teamcity_server/datadir/lib/jdbc/mysql-connector-java-bin.jar http://central.maven.org/maven2/mysql/mysql-connector-java/5.1.43/mysql-connector-java-5.1.43.jar; fi; if [ ! -f /data/teamcity_server/datadir/config/database.properties ]; then mkdir -p /data/teamcity_server/datadir/config; echo connectionProperties.user=teamcity > /data/teamcity_server/datadir/config/database.properties; echo connectionProperties.password=${RDSPassword} >> /data/teamcity_server/datadir/config/database.properties; echo connectionUrl=jdbc:mysql://${RDSAddress}/teamcitydb >> /data/teamcity_server/datadir/config/database.properties; fi; if [ ! -f /data/teamcity_server/datadir/plugins ]; then mkdir -p /data/teamcity_server/datadir/plugins; curl -o /data/teamcity_server/datadir/plugins/aws-ecs.zip https://teamcity.jetbrains.com/guestAuth/app/rest/builds/buildType:TestDrive_TeamCityAmazonEcsPlugin_Build20172x,tag:release/artifacts/content/aws-ecs.zip; fi; echo 'docker-ubuntu-aws' > /opt/teamcity/webapps/ROOT/WEB-INF/DistributionType.txt; exec /run-services.sh;"
               - {
                   RDSAddress: !GetAtt [RDSDB, Endpoint.Address],
-                  RDSPassword: !Ref 'DBPassword',
-                  TeamCityVersion: !Ref 'TeamCityVersion'
+                  RDSPassword: !Ref 'DBPassword'
                 }
           Environment:
             - Name: TEAMCITY_SERVER_MEM_OPTS
@@ -714,7 +706,6 @@ Resources:
       Type: AWS::ECS::TaskDefinition
       Condition: ShouldLaunchAgents
       DependsOn:
-        - PublicLoadBalancer
         - TCServerNodeService
       Properties:
         PlacementConstraints:
@@ -786,8 +777,8 @@ Resources:
           VpcId: !Ref 'VPC'
           SecurityGroupIngress:
             - IpProtocol: tcp
-              FromPort: '22'
-              ToPort: '22'
+              FromPort: 22
+              ToPort: 22
               CidrIp: 0.0.0.0/0
 
   # RDS
@@ -819,7 +810,7 @@ Resources:
   RDSSecurityGroupIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
-      IpProtocol: -1
+      IpProtocol: "-1"
       GroupId:
         Fn::GetAtt:
           - RDSSecurityGroup
@@ -866,9 +857,6 @@ Resources:
   SecuredLoadBalancerListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Condition: ShouldRequestCertificate
-    DependsOn:
-      - PublicLoadBalancer
-      - Certificate
     Properties:
       DefaultActions:
         - TargetGroupArn: !Ref TCServerNodeTargetGroup
@@ -883,8 +871,6 @@ Resources:
   # Utils
   ServerMemory:
     Type: Custom::ServerMemory
-    DependsOn:
-      - ServerMemoryFunction
     Properties:
       ServiceToken: !GetAtt ServerMemoryFunction.Arn
       Region: !Ref "AWS::Region"
@@ -892,11 +878,9 @@ Resources:
 
   ServerMemoryFunction:
     Type: AWS::Lambda::Function
-    DependsOn:
-      - LambdaExecutionRole
     Properties:
       Code:
-        ZipFile: !Sub |
+        ZipFile: |
           var response = require('cfn-response');
           exports.lambda_handler = function(event, context) {
             var input = parseInt(event.ResourceProperties.Input);
@@ -936,8 +920,8 @@ Resources:
       SecurityGroupIngress:
         - CidrIp: !Ref SshAccessSourceIPRange
           IpProtocol: tcp
-          FromPort: '22'
-          ToPort: '22'
+          FromPort: 22
+          ToPort: 22
 
   SshBastionHostInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -1008,13 +992,13 @@ Resources:
         - !Ref PublicSubnet1
         - !Ref PublicSubnet2
       LaunchConfigurationName: !Ref "SshBastionHostLaunchConfiguration"
-      MinSize: 1
-      MaxSize: 1
-      DesiredCapacity: !If [EnableExternalSshAccess, 1, 0]
+      MinSize: "1"
+      MaxSize: "1"
+      DesiredCapacity: !If [EnableExternalSshAccess, "1", "0"]
       Tags:
         - Key: teamcity.node-responsibility
           Value: ssh-bastion-host
-          PropagateAtLaunch: 'true'
+          PropagateAtLaunch: true
 
 
 Outputs:
@@ -1025,4 +1009,3 @@ Outputs:
   SSHBastionHostIP:
     Description: SSH Bastion Host IP
     Value: !If [EnableExternalSshAccess, !Ref SshBastionHostPublicEIP, 'not provided']
-
