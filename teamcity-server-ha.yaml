@@ -1300,7 +1300,7 @@ Resources:
             response.send(event, context, response.SUCCESS, responseData);
           }
       Handler: "index.lambda_handler"
-      Runtime: nodejs8.10
+      Runtime: nodejs12.x
       Timeout: 30
       Role: !GetAtt [ LambdaExecutionRole, Arn ]
 
