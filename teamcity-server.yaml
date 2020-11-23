@@ -73,9 +73,9 @@ Parameters:
     DBInstanceType:
             Description: The instance type for the RDS instance for TeamCity Database
             Type: String
-            Default: db.t2.medium
+            Default: db.t3.small
             AllowedValues:
-              - db.t2.medium
+              - db.t3.small
               - db.m4.large
               - db.m4.xlarge
               - db.m4.2xlarge
@@ -101,10 +101,10 @@ Parameters:
     AgentInstanceType:
         Description: The instance type for the EC2 instance running container with TeamCity Build Agent
         Type: String
-        Default: t2.medium
+        Default: t3.medium
         AllowedValues:
           - t2.small
-          - t2.medium
+          - t3.medium
           - t2.large
           - t2.xlarge
           - t2.2xlarge
@@ -794,7 +794,7 @@ Resources:
       VPCSecurityGroups:
       - Ref: RDSSecurityGroup
       Engine: MySQL
-      EngineVersion: 5.5.54
+      EngineVersion: 5.7.31
       MasterUsername: teamcity
       MasterUserPassword: !Ref 'DBPassword'
       DBParameterGroupName: !Ref 'RDSParamGroup'
@@ -823,7 +823,7 @@ Resources:
   RDSParamGroup:
     Type: AWS::RDS::DBParameterGroup
     Properties:
-      Family: MySQL5.5
+      Family: MySQL5.7
       Description: !Sub TeamCity ${AWS::StackName} DB
       Parameters:
         long_query_time: "5"
