@@ -10,3 +10,5 @@
 * HTTPS clone URL: https://github.com/JetBrains/teamcity-cloudformation-template.git
 
 Develop with pleasure!
+
+> **_NOTE:_** This is not a production-ready deployment
