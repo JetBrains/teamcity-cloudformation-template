@@ -670,6 +670,7 @@ Resources:
           Cpu: !Ref ServerContainerCpu
           Memory: !Ref ServerContainerMemory
           Essential: true
+          User: root
           Command:
             - "/bin/bash"
             - "-c"
@@ -714,6 +715,7 @@ Resources:
         ContainerDefinitions:
           - Name: 'teamcity-agent'
             Image: !Join [':', ['jetbrains/teamcity-agent', !Ref 'TeamCityVersion']]
+            User: root
             Cpu: !Ref AgentContainerCpu
             Memory: !Ref AgentContainerMemory
             Essential: true

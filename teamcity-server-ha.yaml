@@ -928,6 +928,7 @@ Resources:
             SourcePath: /mnt/data/temp/teamcity
       ContainerDefinitions:
         - Name: 'teamcity-server'
+          User: root
           Image: !Join [':', ['jetbrains/teamcity-server', !Ref 'TeamCityVersion']]
           Cpu: !Ref ServerContainerCpu
           Memory: !Ref ServerContainerMemory
@@ -1036,6 +1037,7 @@ Resources:
             Expression: attribute:teamcity.node-responsibility == buildAgent
         ContainerDefinitions:
           - Name: 'teamcity-agent'
+            User: root
             Image: !Join [':', ['jetbrains/teamcity-agent', !Ref 'TeamCityVersion']]
             Cpu: !Ref AgentContainerCpu
             Memory: !Ref AgentContainerMemory
